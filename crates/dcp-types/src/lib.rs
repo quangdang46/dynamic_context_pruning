@@ -1381,7 +1381,10 @@ mod tests {
             let back: Role = serde_json::from_str(&s).unwrap();
             assert_eq!(r, back);
         }
-        assert_eq!(serde_json::to_string(&Role::Assistant).unwrap(), "\"assistant\"");
+        assert_eq!(
+            serde_json::to_string(&Role::Assistant).unwrap(),
+            "\"assistant\""
+        );
     }
 
     // ----- ToolStatus -----
@@ -1398,7 +1401,10 @@ mod tests {
             let back: ToolStatus = serde_json::from_str(&json).unwrap();
             assert_eq!(s, back);
         }
-        assert_eq!(serde_json::to_string(&ToolStatus::Pending).unwrap(), "\"pending\"");
+        assert_eq!(
+            serde_json::to_string(&ToolStatus::Pending).unwrap(),
+            "\"pending\""
+        );
     }
 
     // ----- Part -----
@@ -1571,9 +1577,15 @@ mod tests {
             Err(MessageRefParseError::InvalidDigit)
         );
         assert_eq!(MessageRef::parse("m0000"), Err(MessageRefParseError::Zero));
-        assert_eq!(MessageRef::parse("b"), Err(MessageRefParseError::InvalidLength));
+        assert_eq!(
+            MessageRef::parse("b"),
+            Err(MessageRefParseError::InvalidLength)
+        );
         assert_eq!(MessageRef::parse("b0"), Err(MessageRefParseError::Zero));
-        assert_eq!(MessageRef::parse("b01"), Err(MessageRefParseError::LeadingZero));
+        assert_eq!(
+            MessageRef::parse("b01"),
+            Err(MessageRefParseError::LeadingZero)
+        );
         assert_eq!(
             MessageRef::parse("bx"),
             Err(MessageRefParseError::InvalidDigit)
@@ -1727,8 +1739,7 @@ mod tests {
             cumulative_tokens: 256,
             accumulated_at_turn: 4,
         };
-        let back: PendingPrune =
-            serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+        let back: PendingPrune = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
         assert_eq!(p, back);
     }
 
@@ -1838,8 +1849,7 @@ mod tests {
     #[test]
     fn session_state_default_is_serde_roundtrip() {
         let s = SessionState::default();
-        let back: SessionState =
-            serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        let back: SessionState = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(s, back);
     }
 
