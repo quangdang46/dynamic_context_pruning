@@ -9,19 +9,47 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+# ─────────────────────────────────────────────────────────────────────────
+# Dependencies — every implementation crate the umbrella re-exports from.
+# ─────────────────────────────────────────────────────────────────────────
 [dependencies]
-dcp-core = { workspace = true }
 dcp-types = { workspace = true }
 dcp-traits = { workspace = true }
 dcp-config = { workspace = true }
+dcp-tokens = { workspace = true }
+dcp-storage = { workspace = true }
+dcp-prompts = { workspace = true }
+dcp-telemetry = { workspace = true }
+dcp-core = { workspace = true }
 
+# ─────────────────────────────────────────────────────────────────────────
+# Feature flags (PLAN.md §5.3)
+# ─────────────────────────────────────────────────────────────────────────
 [features]
 default = []
-# Pass-through to dcp-core.
+
+# Async facade — wraps the sync core via `tokio::task::spawn_blocking`.
 async = ["dcp-core/async"]
-tokenizers = ["dcp-core/tokenizers"]
-tiktoken-fast = ["dcp-core/tiktoken-fast"]
-claude-tokens = ["dcp-core/claude-tokens"]
+
+# Tokenizer backends (pass-through to dcp-tokens via dcp-core).
+tokenizers = ["dcp-core/tokenizers", "dcp-tokens/tokenizers"]
+tiktoken = ["dcp-core/tiktoken-fast", "dcp-tokens/tiktoken-fast"]
+claude = ["dcp-core/claude-tokens", "dcp-tokens/claude-tokens"]
+
+# Optional integrations — placeholders. The wiring lands in the
+# corresponding adapter crate (`adapters/dcp-rig`,
+# `adapters/dcp-claude-hook`) and the optional MCP server (`bins/dcp-mcp`)
+# in a follow-up phase. Listing them here today keeps the public feature
+# surface stable so downstream callers can opt into the toggles without a
+# breaking change later.
+mcp = []
+claude-hook = []
+rig = []
+
+# Compression-quality / experimental research features (PLAN.md §5.3).
+lingua = []
+semantic = []
+quality = []
 
 [lib]
 path = "src/lib.rs"

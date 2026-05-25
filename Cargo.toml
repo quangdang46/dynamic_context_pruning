@@ -16,7 +16,7 @@ members = [
     "crates/dcp-core",
     "crates/dynamic_context_pruning",
 ]
-default-members = ["crates/dynamic_context_pruning"]
+default-members = [".", "crates/dynamic_context_pruning"]
 
 [workspace.package]
 version = "0.1.0"
@@ -63,8 +63,72 @@ dcp-nudges = { path = "crates/dcp-nudges", version = "=0.1.0" }
 dcp-config = { path = "crates/dcp-config", version = "=0.1.0" }
 dcp-telemetry = { path = "crates/dcp-telemetry", version = "=0.1.0" }
 dcp-core = { path = "crates/dcp-core", version = "=0.1.0" }
+dynamic_context_pruning = { path = "crates/dynamic_context_pruning", version = "=0.1.0" }
 
 [profile.release]
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# ──────────────────────────────────────────────────────────────────────────
+# Workspace-root package: hosts the public examples and the end-to-end
+# smoke test (PLAN.md §5 / Appendix A). The root is both a virtual
+# workspace and a package; the package itself ships nothing — it just
+# binds Cargo's `[[example]]` / `[[test]]` machinery to files that live
+# at the repository root rather than inside a member crate.
+# ──────────────────────────────────────────────────────────────────────────
+[package]
+name = "dynamic_context_pruning_workspace"
+description = "Workspace-root examples and end-to-end smoke test for dynamic_context_pruning."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+# Disable target auto-discovery; every example and integration test is
+# listed explicitly below so the layout stays predictable.
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+name = "dynamic_context_pruning_workspace"
+path = "src/lib.rs"
+
+[dependencies]
+dynamic_context_pruning = { workspace = true }
+
+[dev-dependencies]
+dynamic_context_pruning = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+
+[[example]]
+name = "01_minimal"
+path = "examples/01_minimal.rs"
+
+[[example]]
+name = "02_jcode_integration"
+path = "examples/02_jcode_integration.rs"
+
+[[example]]
+name = "03_codex_integration"
+path = "examples/03_codex_integration.rs"
+
+[[example]]
+name = "04_custom_agent"
+path = "examples/04_custom_agent.rs"
+
+[[example]]
+name = "05_with_memory"
+path = "examples/05_with_memory.rs"
+
+[[example]]
+name = "06_cache_stability"
+path = "examples/06_cache_stability.rs"
+
+[[test]]
+name = "smoke"
+path = "tests/smoke.rs"

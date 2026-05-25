@@ -10,12 +10,41 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-dcp-types = { workspace = true }
 dcp-traits = { workspace = true }
+thiserror = { workspace = true }
 
 [features]
 default = []
-# Backends — wired in Phase 1+.
-tokenizers = []
-tiktoken-fast = []
-claude-tokens = []
+tokenizers = ["dep:tokenizers"]
+tiktoken-fast = ["dep:tiktoken"]
+# `claude-tokenizer` is itself built on top of `tokenizers`, and the
+# `ClaudeTokenizer` wrapper stores a `tokenizers::Tokenizer`, so enabling
+# `claude-tokens` also enables our `tokenizers` feature (purely an
+# internal implementation detail — the user only ever interacts with
+# `ClaudeTokenizer`).
+claude-tokens = ["dep:claude-tokenizer", "tokenizers"]
+
+# HuggingFace `tokenizers` backend. `default-features = false` disables the
+# `progressbar` and `esaxx_fast` defaults; the `onig` regex engine is the
+# upstream-recommended choice for accurate BPE pretokenization.
+[dependencies.tokenizers]
+version = "0.20"
+optional = true
+default-features = false
+features = ["onig"]
+
+# `tiktoken` (NOT `tiktoken-rs`) — pure-Rust port maintained by goliajp.
+# The PLAN/spec called for `0.6`, but the `tiktoken` crate has no `0.x`
+# release on crates.io: the lowest published version is `1.0.1` (yanked
+# 2023), and only the `3.1` line is currently non-yanked. `3.1.x` matches
+# the API the spec describes (`get_encoding(name)` + `CoreBpe::count`).
+[dependencies.tiktoken]
+version = "3.1"
+optional = true
+
+# `claude-tokenizer` ships an embedded `claude-v3-tokenizer.json` and a
+# pre-built HuggingFace `Tokenizer`; we only call its top-level helper
+# functions (`get_tokenizer`, `count_tokens`).
+[dependencies.claude-tokenizer]
+version = "0.2"
+optional = true
