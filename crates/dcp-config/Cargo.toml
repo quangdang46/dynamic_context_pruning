@@ -11,6 +11,18 @@ categories.workspace = true
 
 [dependencies]
 dcp-types = { workspace = true }
+dcp-prune = { workspace = true }
+dcp-protected = { workspace = true }
+dcp-state = { workspace = true }
+dcp-compress = { workspace = true }
+dcp-nudges = { workspace = true }
+dcp-prompts = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+json5 = { workspace = true }
+schemars = { workspace = true }
 thiserror = { workspace = true }
+dirs = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

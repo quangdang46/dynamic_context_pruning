@@ -43,6 +43,11 @@ tokio = { version = "1" }
 proptest = { version = "1" }
 insta = { version = "1" }
 criterion = { version = "0.5" }
+json5 = "0.4"
+schemars = { version = "0.8", features = ["derive"] }
+dirs = "5"
+tempfile = "3"
+globset = "0.4"
 
 # Internal crates — pinned to exact workspace version
 dcp-types = { path = "crates/dcp-types", version = "=0.1.0" }

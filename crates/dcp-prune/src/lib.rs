@@ -33,11 +33,13 @@
 //! tests and short-lived callers.
 
 pub mod apply;
+pub mod cache_stability;
 pub mod config;
 pub mod deduplicate;
 pub mod purge_errors;
 pub mod stale_file_reads;
 
 pub use apply::{PURGED_INPUT_PLACEHOLDER, PruneKind, apply_prune_to_messages};
+pub use cache_stability::CacheStabilityMode;
 pub use config::{PruneConfig, StaticPruneConfig};
 pub use dcp_traits::PruneOutcome;
