@@ -10,11 +10,17 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-dcp-types = { workspace = true }
 dcp-traits = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+log = { version = "0.4", optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
 
 [features]
 default = []
+# Forward telemetry events to the `log` crate via [`LoggingObserver`].
+logging = ["dep:log"]
 # Quality regression detector (Phase 6+).
 quality = []
