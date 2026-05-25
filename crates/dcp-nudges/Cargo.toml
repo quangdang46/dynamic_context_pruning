@@ -11,6 +11,10 @@ categories.workspace = true
 
 [dependencies]
 dcp-types = { workspace = true }
+dcp-traits = { workspace = true }
 dcp-state = { workspace = true }
 dcp-prompts = { workspace = true }
 serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
