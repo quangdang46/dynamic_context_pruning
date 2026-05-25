@@ -12,3 +12,5 @@ categories.workspace = true
 [dependencies]
 dcp-types = { workspace = true }
 dcp-traits = { workspace = true }
+globset = "0.4"
+thiserror = { workspace = true }
