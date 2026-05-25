@@ -10,6 +10,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-dcp-types = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = "3"
