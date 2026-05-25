@@ -1,0 +1,36 @@
+[package]
+name = "dcp-core"
+description = "ContextPruner facade and orchestration for dynamic_context_pruning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+dcp-types = { workspace = true }
+dcp-traits = { workspace = true }
+dcp-tokens = { workspace = true }
+dcp-protected = { workspace = true }
+dcp-state = { workspace = true }
+dcp-storage = { workspace = true }
+dcp-prune = { workspace = true }
+dcp-compress = { workspace = true }
+dcp-prompts = { workspace = true }
+dcp-nudges = { workspace = true }
+dcp-config = { workspace = true }
+dcp-telemetry = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+# Async facade — wired in Phase 5.
+async = []
+# Tokenizer feature pass-through.
+tokenizers = ["dcp-tokens/tokenizers"]
+tiktoken-fast = ["dcp-tokens/tiktoken-fast"]
+claude-tokens = ["dcp-tokens/claude-tokens"]

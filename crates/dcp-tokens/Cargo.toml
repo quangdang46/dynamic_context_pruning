@@ -1,0 +1,21 @@
+[package]
+name = "dcp-tokens"
+description = "Tokenizer implementations for dynamic_context_pruning (char/4 default, optional HuggingFace tokenizers, tiktoken, Claude)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+dcp-types = { workspace = true }
+dcp-traits = { workspace = true }
+
+[features]
+default = []
+# Backends — wired in Phase 1+.
+tokenizers = []
+tiktoken-fast = []
+claude-tokens = []

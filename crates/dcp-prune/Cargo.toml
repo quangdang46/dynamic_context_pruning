@@ -1,0 +1,24 @@
+[package]
+name = "dcp-prune"
+description = "Deterministic prune strategies (deduplicate, purge_errors, stale_file_reads) for dynamic_context_pruning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+dcp-types = { workspace = true }
+dcp-traits = { workspace = true }
+dcp-protected = { workspace = true }
+dcp-state = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+default = []
+# Experimental: token-level (LLMLingua-2) and embedding-based dedup.
+lingua = []
+embedding = []

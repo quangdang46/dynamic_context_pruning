@@ -1,0 +1,27 @@
+[package]
+name = "dynamic_context_pruning"
+description = "Dynamic context pruning library for LLM coding agents — deduplicate tool calls, purge errored inputs, drop stale file reads, and host an LLM-driven compress tool, all while keeping prompt caches stable."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+dcp-core = { workspace = true }
+dcp-types = { workspace = true }
+dcp-traits = { workspace = true }
+dcp-config = { workspace = true }
+
+[features]
+default = []
+# Pass-through to dcp-core.
+async = ["dcp-core/async"]
+tokenizers = ["dcp-core/tokenizers"]
+tiktoken-fast = ["dcp-core/tiktoken-fast"]
+claude-tokens = ["dcp-core/claude-tokens"]
+
+[lib]
+path = "src/lib.rs"

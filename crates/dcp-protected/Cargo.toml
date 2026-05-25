@@ -1,0 +1,14 @@
+[package]
+name = "dcp-protected"
+description = "Glob-based tool and file-path protection helpers for dynamic_context_pruning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+dcp-types = { workspace = true }
+dcp-traits = { workspace = true }

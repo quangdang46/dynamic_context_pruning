@@ -1,0 +1,65 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/dcp-types",
+    "crates/dcp-traits",
+    "crates/dcp-tokens",
+    "crates/dcp-protected",
+    "crates/dcp-state",
+    "crates/dcp-storage",
+    "crates/dcp-prune",
+    "crates/dcp-compress",
+    "crates/dcp-prompts",
+    "crates/dcp-nudges",
+    "crates/dcp-config",
+    "crates/dcp-telemetry",
+    "crates/dcp-core",
+    "crates/dynamic_context_pruning",
+]
+default-members = ["crates/dynamic_context_pruning"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# Edition 2024 requires Rust 1.85.0 or newer. PLAN.md §15 Q3 had 1.75 as a
+# proposed MSRV; bumped here to the minimum compatible with edition 2024.
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/quangdang46/dynamic_context_pruning"
+keywords = ["llm", "agent", "context", "pruning", "tokens"]
+categories = ["development-tools"]
+
+[workspace.dependencies]
+# External dependencies (PLAN.md Appendix A.1)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+anyhow = "1"
+# Note: `optional = true` is only valid on a consumer crate's [dependencies],
+# not on workspace.dependencies. Consumers opt into these via
+# `tokio = { workspace = true, optional = true }`.
+tokio = { version = "1" }
+proptest = { version = "1" }
+insta = { version = "1" }
+criterion = { version = "0.5" }
+
+# Internal crates — pinned to exact workspace version
+dcp-types = { path = "crates/dcp-types", version = "=0.1.0" }
+dcp-traits = { path = "crates/dcp-traits", version = "=0.1.0" }
+dcp-tokens = { path = "crates/dcp-tokens", version = "=0.1.0" }
+dcp-protected = { path = "crates/dcp-protected", version = "=0.1.0" }
+dcp-state = { path = "crates/dcp-state", version = "=0.1.0" }
+dcp-storage = { path = "crates/dcp-storage", version = "=0.1.0" }
+dcp-prune = { path = "crates/dcp-prune", version = "=0.1.0" }
+dcp-compress = { path = "crates/dcp-compress", version = "=0.1.0" }
+dcp-prompts = { path = "crates/dcp-prompts", version = "=0.1.0" }
+dcp-nudges = { path = "crates/dcp-nudges", version = "=0.1.0" }
+dcp-config = { path = "crates/dcp-config", version = "=0.1.0" }
+dcp-telemetry = { path = "crates/dcp-telemetry", version = "=0.1.0" }
+dcp-core = { path = "crates/dcp-core", version = "=0.1.0" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
