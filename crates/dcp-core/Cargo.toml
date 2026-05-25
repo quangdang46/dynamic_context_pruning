@@ -25,11 +25,17 @@ dcp-telemetry = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+chrono = { workspace = true }
+tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread", "sync"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync"] }
 
 [features]
 default = []
-# Async facade — wired in Phase 5.
-async = []
+# Async facade — wraps the sync core via `tokio::task::spawn_blocking`.
+async = ["dep:tokio"]
 # Tokenizer feature pass-through.
 tokenizers = ["dcp-tokens/tokenizers"]
 tiktoken-fast = ["dcp-tokens/tiktoken-fast"]
