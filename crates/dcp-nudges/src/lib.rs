@@ -457,6 +457,10 @@ pub fn inject_nudges(
         .collect();
 
     for msg in messages.iter_mut() {
+        // Ignored messages are not visible to the LLM — skip injection.
+        if msg.ignored {
+            continue;
+        }
         let Some(kind) = priorities.get(&msg.id) else {
             continue;
         };
@@ -534,6 +538,10 @@ pub fn inject_message_ids(
 
     for msg in messages.iter_mut() {
         if !priorities.contains_key(&msg.id) {
+            continue;
+        }
+        // Ignored messages are not visible to the LLM — skip tagging.
+        if msg.ignored {
             continue;
         }
         let Some(reference) = state.message_ids.by_raw_id.get(&msg.id) else {
@@ -712,7 +720,7 @@ fn assistant_since_user(messages: &[Message]) -> u32 {
     };
     messages[idx + 1..]
         .iter()
-        .filter(|m| m.role == Role::Assistant)
+        .filter(|m| m.role == Role::Assistant && !m.ignored)
         .count() as u32
 }
 
@@ -724,7 +732,7 @@ fn turn_pairs(messages: &[Message]) -> Vec<(String, String)> {
     let mut last_user: Option<String> = None;
     for m in messages {
         match m.role {
-            Role::User if has_text_part(m) => {
+            Role::User if !m.ignored && has_text_part(m) => {
                 last_user = Some(m.id.clone());
             }
             Role::Assistant if has_text_part(m) => {

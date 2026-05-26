@@ -57,7 +57,8 @@ pub fn collect_turn_nudge_anchors(messages: &[Message]) -> HashSet<String> {
                 last_user_text = Some(msg);
             }
             Role::Assistant
-                if last_user_text.is_some()
+                if !msg.ignored
+                    && last_user_text.is_some()
                     && has_text(msg)
                     && !has_open_tool_call(msg, &messages[idx + 1..]) =>
             {

@@ -34,8 +34,11 @@ pub fn strip_messages(messages: &mut [Message]) {
                 crate::Part::Text(t) => {
                     *t = strip_from_string(t);
                 }
-                crate::Part::ToolResult { output: Some(s), .. } => {
+                crate::Part::ToolResult { output: Some(s), error, .. } => {
                     *s = strip_from_string(s);
+                    if let Some(e) = error {
+                        *e = strip_from_string(e);
+                    }
                 }
                 // Reasoning, ToolCall, Image, ToolResult(None) — no-op.
                 _ => {}
@@ -75,6 +78,56 @@ mod tests {
         let out = strip_from_string(text);
         assert!(!out.contains("<dcp-subagent-result>"));
         assert!(out.contains("Result:"));
+    }
+
+    #[test]
+    fn strip_tool_result_error_field() {
+        use crate::{Message, Part, Role, ToolStatus};
+        let mut messages = vec![Message::new(
+            "t1",
+            Role::User,
+            vec![Part::tool_result(
+                "c1",
+                ToolStatus::Completed,
+                None,
+                Some("Oops  something went wrong".into()),
+            )],
+            0,
+        )];
+        strip_messages(&mut messages);
+        match &messages[0].parts[0] {
+            Part::ToolResult { error: Some(e), .. } => {
+                assert!(!e.contains("<dcp"));
+                assert_eq!(e, "Oops  something went wrong");
+            }
+            _ => panic!("expected tool_result with error"),
+        }
+    }
+
+    #[test]
+    fn strip_tool_result_both_output_and_error() {
+        use crate::{Message, Part, Role, ToolStatus};
+        let mut messages = vec![Message::new(
+            "t1",
+            Role::User,
+            vec![Part::tool_result(
+                "c1",
+                ToolStatus::Completed,
+                Some("Output:  here".into()),
+                Some("Error:  failed".into()),
+            )],
+            0,
+        )];
+        strip_messages(&mut messages);
+        match &messages[0].parts[0] {
+            Part::ToolResult { output: Some(o), error: Some(e), .. } => {
+                assert!(!o.contains("<dcp"));
+                assert!(!e.contains("<dcp"));
+                assert_eq!(o, "Output:  here");
+                assert_eq!(e, "Error:  failed");
+            }
+            _ => panic!("expected tool_result with both"),
+        }
     }
 
     #[test]
