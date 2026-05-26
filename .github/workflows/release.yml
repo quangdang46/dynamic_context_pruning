@@ -1,0 +1,104 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+permissions:
+  contents: write
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, runner: ubuntu-latest, artifact: dcp-toolchain, binary: dcp Linux x86_64, ext: tar.gz, cross: true }
+          - { target: aarch64-unknown-linux-musl, runner: ubuntu-latest, artifact: dcp-toolchain, binary: dcp Linux aarch64, ext: tar.gz, cross: true }
+          - { target: x86_64-apple-darwin, runner: macos-latest, artifact: dcp-toolchain, binary: dcp macOS x86_64, ext: tar.gz, cross: false }
+          - { target: aarch64-apple-darwin, runner: macos-latest, artifact: dcp-toolchain, binary: dcp macOS aarch64, ext: tar.gz, cross: false }
+          - { target: x86_64-pc-windows-msvc, runner: windows-latest, artifact: dcp-toolchain, binary: dcp Windows x86_64, ext: zip, cross: false }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+      - name: Build dcp binary
+        run: |
+          cargo build --release -p dcp-cli --bin dcp --target ${{ matrix.target }}
+          mkdir -p dist/${{ matrix.artifact }}/${{ matrix.binary }}
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            cp target/${{ matrix.target }}/release/dcp.exe dist/${{ matrix.artifact }}/${{ matrix.binary }}/dcp.exe
+            cd dist/${{ matrix.artifact }}/${{ matrix.binary }}
+            powershell -Command "Compress-Archive -Path dcp.exe -DestinationPath ..\\..\\..\\dcp-${{ matrix.target }}.zip -Force"
+          else
+            cp target/${{ matrix.target }}/release/dcp dist/${{ matrix.artifact }}/${{ matrix.binary }}/dcp
+            cd dist/${{ matrix.artifact }}/${{ matrix.binary }}
+            tar -czf ../../..//dcp-${{ matrix.target }}.tar.gz .
+          fi
+          cd /tmp
+      - name: Build dcp-mcp binary
+        run: |
+          cargo build --release -p dcp-mcp --target ${{ matrix.target }}
+          mkdir -p dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            cp target/${{ matrix.target }}/release/dcp-mcp.exe dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-mcp.exe
+            cd dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}
+            powershell -Command "Compress-Archive -Path dcp-mcp.exe -DestinationPath ..\\..\\..\\dcp-mcp-${{ matrix.target }}.zip -Force"
+          else
+            cp target/${{ matrix.target }}/release/dcp-mcp dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-mcp
+            cd dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}
+            tar -czf ../../..//dcp-mcp-${{ matrix.target }}.tar.gz .
+          fi
+          cd /tmp
+      - name: Build dcp-claude-hook binary
+        run: |
+          cargo build --release -p dcp-claude-hook --target ${{ matrix.target }}
+          mkdir -p dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            cp target/${{ matrix.target }}/release/dcp-claude-hook.exe dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-claude-hook.exe
+            cd dist/${{ matrix.body }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}
+            powershell -Command "Compress-Archive -Path dcp-claude-hook.exe -DestinationPath ..\\..\\..\\dcp-claude-hook-${{ matrix.target }}.zip -Force"
+          else
+            cp target/${{ matrix.target }}/release/dcp-claude-hook dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-claude-hook
+            cd dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}
+            tar -czf ../../..//dcp-claude-hook-${{ matrix.target }}.tar.gz .
+          fi
+          cd /tmp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/dcp-${{ matrix.target }}.*
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Move artifacts to release root
+        run: |
+          mkdir -p release-root
+          find artifacts -name "*.tar.gz" -o -name "*.zip" | while read f; do
+            mv "$f" release-root/
+          done
+          ls -la release-root/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-root/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

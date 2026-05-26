@@ -4,6 +4,12 @@ Dynamic context pruning library for LLM coding agents.
 
 > **Status**: Pre-alpha · scaffolding in progress · API not yet stable.
 
+## Quick install
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh?$(date +%s)" | bash
+```
+
 ## What it does
 
 Reduces token usage in LLM agent conversations by:
