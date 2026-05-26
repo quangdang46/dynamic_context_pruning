@@ -1,0 +1,22 @@
+[package]
+name = "dcp-rig"
+description = "Rig framework adapter for dynamic_context_pruning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+dcp-core = { workspace = true }
+dcp-types = { workspace = true }
+dcp-config = { workspace = true }
+rig = "0.37"
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

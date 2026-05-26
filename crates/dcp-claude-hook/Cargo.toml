@@ -1,0 +1,21 @@
+[package]
+name = "dcp-claude-hook"
+description = "Claude Code SessionStart hook binary for dynamic_context_pruning"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[[bin]]
+name = "dcp-claude-hook"
+path = "src/main.rs"
+
+[dependencies]
+dcp-core = { workspace = true }
+dcp-types = { workspace = true }
+dcp-config = { workspace = true }
+dcp-storage = { workspace = true }
+anyhow = { workspace = true }
