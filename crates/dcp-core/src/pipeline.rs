@@ -348,7 +348,7 @@ pub(crate) fn inject_nudges_and_ids(
     config: &Config,
     prompts: &Prompts,
     tokenizer: &dyn Tokenizer,
-    messages: &mut Vec<Message>,
+    messages: &mut [Message],
     telemetry: &mut Telemetry,
 ) {
     let nudge_cfg = nudge_config_from(config);
