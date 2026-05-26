@@ -714,7 +714,7 @@ fn has_text_part(msg: &Message) -> bool {
 fn assistant_since_user(messages: &[Message]) -> u32 {
     let last_user = messages
         .iter()
-        .rposition(|m| m.role == Role::User && has_text_part(m));
+        .rposition(|m| m.role == Role::User && !m.ignored && has_text_part(m));
     let Some(idx) = last_user else {
         return 0;
     };
@@ -753,7 +753,7 @@ fn preceding_user_text_id(messages: &[Message], assistant_id: &str) -> Option<St
     messages[..asst_idx]
         .iter()
         .rev()
-        .find(|m| m.role == Role::User && has_text_part(m))
+        .find(|m| m.role == Role::User && !m.ignored && has_text_part(m))
         .map(|m| m.id.clone())
 }
 

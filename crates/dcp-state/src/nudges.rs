@@ -53,7 +53,7 @@ pub fn collect_turn_nudge_anchors(messages: &[Message]) -> HashSet<String> {
 
     for (idx, msg) in messages.iter().enumerate() {
         match msg.role {
-            Role::User if has_text(msg) => {
+            Role::User if !msg.ignored && has_text(msg) => {
                 last_user_text = Some(msg);
             }
             Role::Assistant
