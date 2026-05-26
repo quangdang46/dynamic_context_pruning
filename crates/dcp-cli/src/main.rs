@@ -172,7 +172,7 @@ fn main() -> anyhow::Result<()> {
                 let path = parts[1];
                 let content = std::fs::read_to_string(path)?;
                 let json: JsonValue = serde_json::from_str(&content)?;
-                let arr = json.as_array().map(|a| a.clone()).unwrap_or_else(Vec::new);
+                let arr = json.as_array().cloned().unwrap_or_default();
                 messages.clear();
                 for (i, v) in arr.iter().enumerate() {
                     if let Some(obj) = v.as_object() {
