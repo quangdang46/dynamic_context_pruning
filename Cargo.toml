@@ -14,6 +14,10 @@ members = [
     "crates/dcp-config",
     "crates/dcp-telemetry",
     "crates/dcp-core",
+    "crates/dcp-mcp",
+    "crates/dcp-cli",
+    "crates/dcp-claude-hook",
+    "crates/dcp-rig",
     "crates/dynamic_context_pruning",
 ]
 default-members = [".", "crates/dynamic_context_pruning"]
@@ -63,6 +67,10 @@ dcp-nudges = { path = "crates/dcp-nudges", version = "=0.1.0" }
 dcp-config = { path = "crates/dcp-config", version = "=0.1.0" }
 dcp-telemetry = { path = "crates/dcp-telemetry", version = "=0.1.0" }
 dcp-core = { path = "crates/dcp-core", version = "=0.1.0" }
+dcp-mcp = { path = "crates/dcp-mcp", version = "=0.1.0" }
+dcp-cli = { path = "crates/dcp-cli", version = "=0.1.0" }
+dcp-claude-hook = { path = "crates/dcp-claude-hook", version = "=0.1.0" }
+dcp-rig = { path = "crates/dcp-rig", version = "=0.1.0" }
 dynamic_context_pruning = { path = "crates/dynamic_context_pruning", version = "=0.1.0" }
 
 [profile.release]

@@ -55,6 +55,7 @@ fn parse_msg_json(obj: &serde_json::Map<String, JsonValue>) -> Option<Message> {
     Some(dcp_types::Message::new(id, role, parts, time))
 }
 
+#[allow(dead_code)]
 fn lower_message(msg: &Message) -> JsonValue {
     serde_json::json!({
         "id": msg.id,
