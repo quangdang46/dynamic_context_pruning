@@ -67,6 +67,7 @@ pub fn apply_prune_to_messages(
             role: msg.role,
             parts: new_parts,
             time: msg.time,
+            ignored: msg.ignored,
         });
     }
 

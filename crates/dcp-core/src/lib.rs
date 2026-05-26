@@ -38,6 +38,7 @@ pub(crate) mod pipeline;
 pub mod pruner;
 pub mod tokenizer;
 
+pub(crate) mod strip;
 #[cfg(feature = "async")]
 pub mod async_facade;
 

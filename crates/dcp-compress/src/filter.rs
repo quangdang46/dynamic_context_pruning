@@ -76,6 +76,7 @@ fn render_block_anchor(msg: &Message, block: &dcp_types::CompressionBlock) -> Me
         role: msg.role,
         parts: new_parts,
         time: msg.time,
+        ignored: msg.ignored,
     }
 }
 

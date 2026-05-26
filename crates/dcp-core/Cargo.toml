@@ -26,6 +26,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
+regex = "1"
+lazy_static = { version = "1", default-features = false }
 tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread", "sync"] }
 
 [dev-dependencies]

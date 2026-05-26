@@ -417,8 +417,9 @@ fn total_token_count(tokenizer: &dyn Tokenizer, messages: &[Message]) -> u64 {
 /// of the contract — keep them. This function exists for symmetry with
 /// the SPEC.md §5.4 pseudocode and so the facade has a hook to tighten
 /// later without touching every caller.
-pub(crate) fn strip_internal_metadata(_messages: &mut [Message]) {
-    // Intentionally empty for now. See doc comment above.
+pub(crate) fn strip_internal_metadata(messages: &mut [Message]) {
+    // Strip any stale DCP XML markers from LLM output (hallucinations).
+    crate::strip::strip_messages(messages);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

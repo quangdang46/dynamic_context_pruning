@@ -85,13 +85,17 @@ pub fn assign_message_refs(state: &mut SessionState, messages: &[Message]) {
 
 /// `true` when a message should receive a library reference.
 fn is_ref_eligible(m: &Message) -> bool {
+    // Skip messages the host has elided from the LLM's view.
+    if m.ignored {
+        return false;
+    }
     !matches!(m.role, Role::System)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use dcp_types::{Message, Role, SessionState};
+    use dcp_types::{Message, Part, Role, SessionState};
 
     #[test]
     fn assigns_in_order_skipping_system() {
@@ -189,4 +193,30 @@ mod tests {
         assert!(is_ref_eligible(&u));
         assert_eq!(u.role, Role::User);
     }
+    #[test]
+    fn skipped_ignored_user_message() {
+        let messages = vec![
+            Message::user_text("u1", 0, "visible"),
+            Message {
+                id: "u2".into(),
+                role: Role::User,
+                parts: vec![Part::text("ignored")],
+                time: 0,
+                ignored: true,
+            },
+            Message::assistant_text("a1", 0, "ack"),
+        ];
+        let mut state = SessionState::default();
+        assign_message_refs(&mut state, &messages);
+
+        // u1 visible -> gets m0001
+        assert_eq!(state.message_ids.by_raw_id["u1"], "m0001");
+        // u2 ignored -> no ref
+        assert!(!state.message_ids.by_raw_id.contains_key("u2"));
+        // a1 visible -> gets m0002
+        assert_eq!(state.message_ids.by_raw_id["a1"], "m0002");
+        // next_ref = 3
+        assert_eq!(state.message_ids.next_ref, 3);
+    }
 }
+

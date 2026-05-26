@@ -274,6 +274,19 @@ impl Part {
     pub fn is_tool_result(&self) -> bool {
         matches!(self, Part::ToolResult { .. })
     }
+
+    /// True when this part is a [`Part::Text`].
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use dcp_types::Part;
+    /// assert!(Part::text("hello").is_text());
+    /// assert!(!Part::reasoning("think").is_text());
+    /// ```
+    pub fn is_text(&self) -> bool {
+        matches!(self, Part::Text(_))
+    }
 }
 
 // ============================================================================
@@ -307,6 +320,11 @@ pub struct Message {
     /// Wall-clock millisecond timestamp. May be `0` if the host has no
     /// timestamp; never used for logic that affects pruning.
     pub time: i64,
+    /// Marked ignored when the host has elided this message from the LLM's
+    /// view. Ignored user messages are skipped by message-ref allocation
+    /// and do not receive nudge tags. Defaults to `false`.
+    #[serde(default)]
+    pub ignored: bool,
 }
 
 impl Message {
@@ -325,6 +343,7 @@ impl Message {
             role,
             parts,
             time,
+            ignored: false,
         }
     }
 
