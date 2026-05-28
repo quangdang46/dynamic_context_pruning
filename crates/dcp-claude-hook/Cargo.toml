@@ -19,3 +19,5 @@ dcp-types = { workspace = true }
 dcp-config = { workspace = true }
 dcp-storage = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
