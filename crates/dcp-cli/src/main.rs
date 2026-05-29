@@ -404,7 +404,11 @@ fn main() -> anyhow::Result<()> {
         Commands::Timeline { session_id } => {
             commands::timeline::run(&commands::timeline::Args { session_id })?;
         }
-        Commands::FindSession { pattern, after, before } => {
+        Commands::FindSession {
+            pattern,
+            after,
+            before,
+        } => {
             commands::find_session::run(&commands::find_session::Args {
                 pattern,
                 after,

@@ -82,3 +82,7 @@ pub use dcp_types::{
     MessageRef, MessageRefKind, MessageRefParseError, Part, Role, RunId, SessionState, Stats,
     ToolStatus,
 };
+
+pub use dcp_messages as messages;
+pub use dcp_notification as notification;
+pub use dcp_permissions as permissions;

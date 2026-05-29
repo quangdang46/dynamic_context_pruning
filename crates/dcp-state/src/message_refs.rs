@@ -377,16 +377,26 @@ mod tests {
         assert_eq!(parse_block_ref("  b7  "), Some(7));
     }
 
-#[test]
+    #[test]
     fn boundary_id_message_variant() {
-        let id = BoundaryId::Message { ref_: "m0001".into(), index: 1 };
-        assert!(matches!(&id, BoundaryId::Message { ref_, index } if ref_ == "m0001" && *index == 1));
+        let id = BoundaryId::Message {
+            ref_: "m0001".into(),
+            index: 1,
+        };
+        assert!(
+            matches!(&id, BoundaryId::Message { ref_, index } if ref_ == "m0001" && *index == 1)
+        );
     }
 
     #[test]
     fn boundary_id_block_variant() {
-        let id = BoundaryId::Block { ref_: "b7".into(), block_id: 7 };
-        assert!(matches!(&id, BoundaryId::Block { ref_, block_id } if ref_ == "b7" && *block_id == 7));
+        let id = BoundaryId::Block {
+            ref_: "b7".into(),
+            block_id: 7,
+        };
+        assert!(
+            matches!(&id, BoundaryId::Block { ref_, block_id } if ref_ == "b7" && *block_id == 7)
+        );
     }
 
     #[test]
@@ -441,7 +451,7 @@ mod tests {
         assert!(result.contains(r#" z="2""#));
     }
 
-#[test]
+    #[test]
     fn format_message_id_tag_xml_escapes_attr_values() {
         let attrs = vec![("x".into(), "a".into())];
         let result = format_message_id_tag("m0001", Some(&attrs));

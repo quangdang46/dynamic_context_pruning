@@ -1,7 +1,7 @@
 //! `find-session` subcommand — find sessions by pattern or date range.
 
 use clap::Parser;
-use dcp_storage::{default_storage_dir, FileStateStore};
+use dcp_storage::{FileStateStore, default_storage_dir};
 use dcp_traits::StatePersistence;
 
 /// Find sessions by ID pattern or date range.
@@ -131,9 +131,15 @@ fn parse_date(s: &str) -> anyhow::Result<i64> {
         anyhow::bail!("date must be in YYYY-MM-DD format");
     }
 
-    let year: i64 = parts[0].parse().map_err(|_| anyhow::anyhow!("invalid year"))?;
-    let month: u8 = parts[1].parse().map_err(|_| anyhow::anyhow!("invalid month"))?;
-    let day: u8 = parts[2].parse().map_err(|_| anyhow::anyhow!("invalid day"))?;
+    let year: i64 = parts[0]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid year"))?;
+    let month: u8 = parts[1]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid month"))?;
+    let day: u8 = parts[2]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("invalid day"))?;
 
     if !(1..=12).contains(&month) {
         anyhow::bail!("month must be between 1 and 12");
@@ -147,8 +153,8 @@ fn parse_date(s: &str) -> anyhow::Result<i64> {
 }
 
 fn days_from_epoch(year: i64, month: u8, day: u8) -> i64 {
-    let mut days = (year - 1970) * 365 + ((year - 1969) / 4) - ((year - 1901) / 100)
-        + ((year - 1601) / 400);
+    let mut days =
+        (year - 1970) * 365 + ((year - 1969) / 4) - ((year - 1901) / 100) + ((year - 1601) / 400);
 
     let month_days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     for m in 1..month {
@@ -205,8 +211,13 @@ mod tests {
 
     #[test]
     fn find_session_args_parsing_date_range() {
-        let args =
-            Args::parse_from(["find-session", "--after", "2024-01-01", "--before", "2024-12-31"]);
+        let args = Args::parse_from([
+            "find-session",
+            "--after",
+            "2024-01-01",
+            "--before",
+            "2024-12-31",
+        ]);
         assert!(args.pattern.is_none());
         assert_eq!(args.after, Some("2024-01-01".to_string()));
         assert_eq!(args.before, Some("2024-12-31".to_string()));

@@ -22,6 +22,9 @@ dcp-prompts = { workspace = true }
 dcp-nudges = { workspace = true }
 dcp-config = { workspace = true }
 dcp-telemetry = { workspace = true }
+dcp-messages = { workspace = true }
+dcp-permissions = { workspace = true }
+dcp-notification = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

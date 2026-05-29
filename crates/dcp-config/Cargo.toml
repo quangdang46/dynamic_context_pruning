@@ -26,3 +26,7 @@ dirs = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[[bin]]
+name = "generate-schema"
+path = "src/bin/generate-schema.rs"

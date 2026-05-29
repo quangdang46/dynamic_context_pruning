@@ -1,7 +1,7 @@
 //! `stats` subcommand — show session statistics.
 
 use clap::Parser;
-use dcp_storage::{default_storage_dir, FileStateStore};
+use dcp_storage::{FileStateStore, default_storage_dir};
 use dcp_traits::{PersistedState, StatePersistence};
 
 /// Show session statistics: total tokens saved, message count, compression ratio.
@@ -50,9 +50,7 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
     // Calculate compression ratio
     let total_original = stats.total_prune_tokens;
     let compression_ratio = if total_original > 0 {
-        let compressed = stats
-            .compress_blocks_committed as u64
-            * stats.compress_useful as u64;
+        let compressed = stats.compress_blocks_committed as u64 * stats.compress_useful as u64;
         if compressed > 0 {
             total_original as f64 / compressed as f64
         } else {
@@ -73,7 +71,10 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
     println!();
     println!("  --- Compression ---");
     println!("  Compression runs:         {}", stats.compress_runs);
-    println!("  Blocks committed:         {}", stats.compress_blocks_committed);
+    println!(
+        "  Blocks committed:         {}",
+        stats.compress_blocks_committed
+    );
     println!("  Compression useful:        {}", stats.compress_useful);
     println!("  Compression oversized:     {}", stats.compress_oversized);
     println!("  Compression ratio (est):  {:.2}x", compression_ratio);
@@ -81,7 +82,10 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
     println!("  --- Pruning ---");
     println!("  Deduplicated:              {}", stats.dedup_pruned);
     println!("  Purge errors:              {}", stats.purge_errors_pruned);
-    println!("  Stale file reads:         {}", stats.stale_file_reads_pruned);
+    println!(
+        "  Stale file reads:         {}",
+        stats.stale_file_reads_pruned
+    );
     println!();
     println!("  --- System ---");
     println!("  Message count:            {}", message_count);

@@ -1,7 +1,7 @@
 //! `timeline` subcommand — show compression events over time.
 
 use clap::Parser;
-use dcp_storage::{default_storage_dir, FileStateStore};
+use dcp_storage::{FileStateStore, default_storage_dir};
 use dcp_traits::{PersistedState, StatePersistence};
 use std::collections::BTreeMap;
 
@@ -36,7 +36,8 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
             blocks_map
                 .iter()
                 .filter_map(|(id, value)| {
-                    let block: CompressionBlockEntry = serde_json::from_value(value.clone()).ok()?;
+                    let block: CompressionBlockEntry =
+                        serde_json::from_value(value.clone()).ok()?;
                     Some((id.clone(), block))
                 })
                 .collect()
@@ -49,10 +50,7 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
         "  {:<20} | {:<6} | {:<6} | {:>12} | Topic",
         "Timestamp", "Block", "Mode", "Tokens Saved"
     );
-    println!(
-        "  {:<20}---{:-<6}---{:-<6}---{:-<12}---",
-        "", "", "", ""
-    );
+    println!("  {:<20}---{:-<6}---{:-<6}---{:-<12}---", "", "", "", "");
 
     if blocks.is_empty() {
         println!("  (no compression events)");

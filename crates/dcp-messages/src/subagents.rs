@@ -45,7 +45,8 @@ pub fn build_subagent_result_text(cache: &HashMap<String, String>, sub_agent_id:
 ///
 /// Stores/updates `result` in `state.sub_agent_result_cache` keyed by `sub_agent_id`.
 pub fn merge_subagent_result(state: &mut SessionState, sub_agent_id: &str, result: &str) {
-    state.subagent_result_cache
+    state
+        .subagent_result_cache
         .insert(sub_agent_id.to_string(), result.to_string());
 }
 
@@ -311,16 +312,14 @@ mod tests {
         assert_eq!(count, 0);
     }
 
-#[test]
+    #[test]
     fn inject_extended_sub_agent_results_returns_count() {
         let mut cache = HashMap::new();
         cache.insert("agent-1".to_string(), "result 1".to_string());
         cache.insert("agent-2".to_string(), "result 2".to_string());
         let state = make_state(cache);
 
-        let mut messages = vec![
-            msg("m1", Role::Assistant, vec![Part::text("original")]),
-        ];
+        let mut messages = vec![msg("m1", Role::Assistant, vec![Part::text("original")])];
 
         let count = inject_extended_sub_agent_results(&state, &mut messages);
 
