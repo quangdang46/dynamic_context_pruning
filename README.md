@@ -25,7 +25,7 @@ dcp-prompts        Default system prompts + 3-tier override cascade (extension, 
 dcp-core           ContextPruner facade + orchestration (top-level entry point)
        ↑
        ├── dcp-mcp           MCP server binary (Model Context Protocol)
-       ├── dcp-cli           CLI binary: stats, timeline, find-session, sweep, compress, decompress
+       ├── dcp-cli           CLI binary: stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress
        ├── dcp-claude-hook   Claude Code SessionStart hook binary
        └── dcp-rig           Rig framework adapter (test fixtures)
 
@@ -72,7 +72,7 @@ cargo run -p dcp-mcp
 | `dcp-notification` | `crates/dcp-notification` | User-facing notification formatting and delivery |
 | `dcp-core` | `crates/dcp-core` | `ContextPruner` facade and orchestration (primary entry point) |
 | `dcp-mcp` | `crates/dcp-mcp` | MCP server binary exposing DCP via Model Context Protocol |
-| `dcp-cli` | `crates/dcp-cli` | CLI binary with stats, timeline, find-session, sweep, compress, decompress commands |
+| `dcp-cli` | `crates/dcp-cli` | CLI binary with stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress commands (requires `--features scripts` for analytics commands) |
 | `dcp-claude-hook` | `crates/dcp-claude-hook` | Claude Code SessionStart hook binary |
 | `dcp-rig` | `crates/dcp-rig` | Rig framework adapter (test fixtures) |
 | `dynamic_context_pruning` | `crates/dynamic_context_pruning` | Umbrella crate re-exporting all public types |
@@ -140,6 +140,15 @@ dcp timeline -s <SESSION_ID>
 dcp find-session --pattern "session-*"
 dcp find-session --after 2024-01-01 --before 2024-12-31
 dcp find-session -p "test-*" -a 2024-01-01
+
+# Get full message payload(s) by ID (requires --features scripts)
+dcp get-message <message-id> [--session SESSION_ID] [--scan-sessions N]
+
+# Token usage statistics across sessions (requires --features scripts)
+dcp token-stats [--sessions N] [--session SESSION_ID] [--json]
+
+# Per-message token breakdown for a session (requires --features scripts)
+dcp message-tokens --session SESSION_ID [--json] [--no-color]
 
 # Flush pending prune tools
 dcp sweep

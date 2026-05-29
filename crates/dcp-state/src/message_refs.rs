@@ -479,7 +479,10 @@ mod tests {
             Message::assistant_text("a1", 0, "hi"),
             Message::user_text("u2", 0, "world"),
         ];
-        let mut state = SessionState { is_subagent: true, ..Default::default() };
+        let mut state = SessionState {
+            is_subagent: true,
+            ..Default::default()
+        };
         assign_message_refs(&mut state, &messages);
 
         assert!(!state.message_ids.by_raw_id.contains_key("u1"));

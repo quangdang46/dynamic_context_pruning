@@ -23,3 +23,16 @@ anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }
+atty = "0.2"
+
+[dependencies.rusqlite]
+version = "0.31"
+features = ["bundled"]
+optional = true
+
+[features]
+default = []
+scripts = ["dep:rusqlite"]
+
+[dev-dependencies]
+tempfile = "3"

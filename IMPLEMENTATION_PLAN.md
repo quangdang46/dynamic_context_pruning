@@ -1,6 +1,6 @@
 # Implementation Plan: Missing Features (TS → Rust Parity)
 
-> **Status**: Updated — Phase A–H COMPLETE, Phase I partial, Phase J remaining
+> **Status**: Phase A–H COMPLETE, Phase I COMPLETE, Phase J COMPLETE
 > **Created**: 2026-05-28
 > **Updated**: 2026-05-29
 > **Scope**: All modules from TypeScript upstream not yet implemented in Rust
@@ -35,34 +35,37 @@
 | F: Prompt Extensions | `dcp-prompts` (extensions/nudge, system, tool + store.rs) | ✅ Done | ~758 |
 | G: Notifications | `dcp-notification` (format.rs, notification.rs) | ✅ Done | 475 |
 | H: JSON Schema | `dcp-config` (LimitValue, generate-schema binary) | ✅ Done | ~340 |
-| **I: CLI Scripts** | **3 of 6 subcommands done, db.rs + 3 commands remaining** | **🔲 Partial** | — |
-| **J: Docs** | **Assets, CONTRIBUTING.md, README updates** | **🔲 Not started** | — |
+| **I: CLI Scripts** | **✅ All 6 subcommands done + db.rs complete** | **✅ Done** | ~850 |
+| **J: Docs** | **✅ All assets, docs, README updates done** | **✅ Done** | — |
 
-### What's still missing
-- **db.rs** — Shared SQLite data access layer for CLI analytics subcommands
-- **get-message** CLI subcommand — Retrieve full message payloads by ID
-- **token-stats** CLI subcommand — Cross-session token aggregation
-- **message-tokens** CLI subcommand — Per-message token counting
-- **CONTRIBUTING.md** — Contribution guide
-- **assets/images/** — Demo screenshots from upstream
-- **README.md** update — Reflect new crates and CLI subcommands
+### What's been completed
+- **db.rs** ✅ — SQLite data access layer for opencode DB
+- **get-message** CLI subcommand ✅ — Retrieve full message payloads by ID
+- **token-stats** CLI subcommand ✅ — Cross-session token aggregation
+- **message-tokens** CLI subcommand ✅ — Per-message token counting
+- **CONTRIBUTING.md** ✅ — Verified up to date
+- **README.md** ✅ — Updated with new subcommands
 
 ---
 
 ## 2. Phase Status Overview
 
 ### Beads status
-- **23 closed** (Phase A–H scaffolds + implementations)
-- **5 open** (Phase I1–I4 + Phase J)
+- **28 closed** (Phase A–H + Phase I1–I4 scaffolds + implementations)
+- **1 open** (Phase J1 — demo screenshots from upstream)
 - **0 dependency cycles**
 
 ### Current bead graph
 ```
-I1 (db.rs) ← READY, no blockers
-├── I2 (get-message)
-├── I3 (token-stats)
-└── I4 (message-tokens)
-    └── J (docs/assets)
+I1 (db.rs) ✅
+├── I2 (get-message) ✅
+├── I3 (token-stats) ✅
+└── I4 (message-tokens) ✅
+    └── J (docs/assets) 🔲
+        ├── J1 (demo screenshots) 🔲 — pending
+        ├── J2 (CONTRIBUTING.md) ✅ — pre-existing, verified
+        ├── J3 (README.md) ✅ — updated
+        └── J4 (PLAN.md) ✅ — updated
 ```
 
 ---
@@ -250,12 +253,14 @@ crates/
 └── dynamic_context_pruning/  # Umbrella crate
 ```
 
-### Estimated remaining work
-| Task | Lines | Effort |
-|---|---|---|
-| I1: db.rs | ~200 | 0.5 day |
-| I2: get-message | ~150 | 0.5 day |
-| I3: token-stats | ~200 | 0.5 day |
-| I4: message-tokens | ~250 | 0.5 day |
-| J: Docs + assets | ~200 | 0.5 day |
-| **Total** | **~1000** | **~2.5 days** |
+### Estimated work (post-completion)
+| Task | Status | Lines | Effort |
+|---|---|---|---|
+| I1: db.rs | ✅ Done | ~250 | 0.5 day |
+| I2: get-message | ✅ Done | ~150 | 0.5 day |
+| I3: token-stats | ✅ Done | ~200 | 0.5 day |
+| I4: message-tokens | ✅ Done | ~250 | 0.5 day |
+| J1: demo screenshots | 🔲 Pending | — | — |
+| J2: CONTRIBUTING.md | ✅ Verified | — | — |
+| J3: README.md | ✅ Done | ~40 | — |
+| J4: PLAN.md | ✅ Done | ~30 | — |

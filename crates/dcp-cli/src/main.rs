@@ -49,6 +49,42 @@ enum Commands {
         #[arg(long = "before", short = 'b')]
         before: Option<String>,
     },
+    /// Get full message payload(s) by ID
+    GetMessage {
+        /// One or more message IDs to retrieve
+        #[arg(required = true)]
+        message_ids: Vec<String>,
+        /// Session ID for direct lookup
+        #[arg(long = "session", short = 's')]
+        session: Option<String>,
+        /// Maximum sessions to scan when no --session given
+        #[arg(long = "scan-sessions", default_value = "200")]
+        scan_sessions: usize,
+    },
+    /// Token usage statistics across sessions
+    TokenStats {
+        /// Number of recent sessions to aggregate
+        #[arg(long = "sessions", short = 'n', default_value = "10")]
+        sessions: usize,
+        /// Focus on a single session
+        #[arg(long = "session", short = 's')]
+        session: Option<String>,
+        /// Output as JSON
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Per-message token breakdown for a session
+    MessageTokens {
+        /// Session ID (required)
+        #[arg(long = "session", short = 's')]
+        session: Option<String>,
+        /// Output as JSON
+        #[arg(long = "json")]
+        json: bool,
+        /// Disable ANSI color output
+        #[arg(long = "no-color")]
+        no_color: bool,
+    },
     /// Flush pending prune tools
     Sweep {
         /// Number of pending prune tools to flush (default: all)
@@ -414,6 +450,72 @@ fn main() -> anyhow::Result<()> {
                 after,
                 before,
             })?;
+        }
+        Commands::GetMessage {
+            message_ids,
+            session,
+            scan_sessions,
+        } => {
+            #[cfg(feature = "scripts")]
+            {
+                let args = commands::get_message::Args {
+                    message_ids,
+                    session,
+                    scan_sessions,
+                };
+                commands::get_message::run(&args)?;
+            }
+            #[cfg(not(feature = "scripts"))]
+            {
+                let _ = (message_ids, session, scan_sessions);
+                anyhow::bail!(
+                    "get-message requires the `scripts` feature (rebuild with --features scripts)"
+                );
+            }
+        }
+        Commands::TokenStats {
+            sessions,
+            session,
+            json,
+        } => {
+            #[cfg(feature = "scripts")]
+            {
+                let args = commands::token_stats::Args {
+                    sessions,
+                    session,
+                    json,
+                };
+                commands::token_stats::run(&args)?;
+            }
+            #[cfg(not(feature = "scripts"))]
+            {
+                let _ = (sessions, session, json);
+                anyhow::bail!(
+                    "token-stats requires the `scripts` feature (rebuild with --features scripts)"
+                );
+            }
+        }
+        Commands::MessageTokens {
+            session,
+            json,
+            no_color,
+        } => {
+            #[cfg(feature = "scripts")]
+            {
+                let args = commands::message_tokens::Args {
+                    session,
+                    json,
+                    no_color,
+                };
+                commands::message_tokens::run(&args)?;
+            }
+            #[cfg(not(feature = "scripts"))]
+            {
+                let _ = (session, json, no_color);
+                anyhow::bail!(
+                    "message-tokens requires the `scripts` feature (rebuild with --features scripts)"
+                );
+            }
         }
         Commands::Sweep { count } => {
             let mut pruner = build_pruner()?;
