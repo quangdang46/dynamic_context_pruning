@@ -65,6 +65,65 @@ cargo fmt --workspace -- --check \
   && cargo build --workspace
 ```
 
+## Pre-commit Hooks
+
+This project uses a pre-commit hook to enforce quality gates **before every commit**.
+
+### Install
+
+```bash
+./scripts/install-hooks.sh
+```
+
+This symlinks `scripts/pre-commit.sh` into `.git/hooks/pre-commit`.
+
+### What it runs (4 gates)
+
+| Gate | Command | Blocks on |
+|------|---------|-----------|
+| Formatting | `cargo fmt --all -- --check` | Any formatting violation |
+| Linting | `cargo clippy --all-targets --all-features -- -D warnings` | Any warning |
+| Tests | `cargo test --all-features` | Any test failure |
+| Build | `cargo build --all-features` | Any compilation error |
+
+All 4 must pass before `git commit` completes.
+
+### Bypass (emergency only)
+
+```bash
+git commit --no-verify -m "emergency fix"
+```
+
+### Per-bead code review
+
+To verify a specific bead's implementation before closing it:
+
+```bash
+# Review a specific bead (e.g. get-message command)
+./scripts/review-bead.sh 0ed
+
+# Review all beads (full workspace)
+./scripts/review-bead.sh --all
+
+# List all beads and their associated files
+./scripts/review-bead.sh --list
+```
+
+The `review-bead.sh` script maps bead IDs to their implementation files and runs the full quality gate on the relevant crate(s).
+
+### Every bead needs a clean code review
+
+Before closing a bead (updating its `status` to `"closed"` in `.beads/issues.jsonl`):
+
+1. Run `./scripts/review-bead.sh <BEAD_ID>` for the bead's implementation files
+2. All 4 gates must pass
+3. Add the verification result to the bead's `close_reason` field
+
+Example close reason:
+```json
+"close_reason": "Verified: cargo fmt OK, clippy OK, all tests pass, build OK"
+```
+
 ## Workspace Structure
 
 This is a Cargo workspace with 21 crates. Key crates:
