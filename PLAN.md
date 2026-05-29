@@ -1,7 +1,7 @@
 
 > **Repo**: `dynamic_context_pruning`
 > **License**: MIT
-> **Status**: Spec lock-in (v6) · scaffold pending
+> **Status**: Implementation complete (Phase 0–8 + A–J) · all 30 beads closed
 > **Plan author**: kiro_default + 4 sub-agent research streams (memory frameworks, prompt compression, provider-native, Rust ecosystem)
 > **Document language**: English (prose) + English (code/identifiers)
 > **Methodology**: Clean-room reimplementation from public specs, with no reference to AGPL upstream source code
