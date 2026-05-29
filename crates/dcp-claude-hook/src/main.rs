@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn test_cli_options() {
-        let args = vec!["dcp-claude-hook", "--on-compact", "--debug"];
+        let args = ["dcp-claude-hook", "--on-compact", "--debug"];
         // SAFETY: This is only used in test context and restored immediately
         unsafe {
             std::env::set_var("DCP_ARGS", args.join(" "));

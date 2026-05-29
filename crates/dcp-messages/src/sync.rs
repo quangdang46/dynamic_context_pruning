@@ -351,12 +351,11 @@ mod tests {
             Some(&block_id_1)
         );
         assert!(
-            state
+            !state
                 .prune
                 .messages
                 .active_by_anchor_message_id
-                .get("m_anchor_2")
-                .is_none()
+                .contains_key("m_anchor_2")
         );
     }
 
