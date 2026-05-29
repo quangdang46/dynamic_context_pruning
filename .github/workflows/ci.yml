@@ -23,3 +23,5 @@ jobs:
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-features
       - run: cargo build --all-features
+      - run: cargo audit
+        if: runner.os == 'linux'

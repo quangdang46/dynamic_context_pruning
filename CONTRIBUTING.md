@@ -77,7 +77,7 @@ This project uses a pre-commit hook to enforce quality gates **before every comm
 
 This symlinks `scripts/pre-commit.sh` into `.git/hooks/pre-commit`.
 
-### What it runs (4 gates)
+### What it runs (5 gates)
 
 | Gate | Command | Blocks on |
 |------|---------|-----------|
@@ -85,8 +85,9 @@ This symlinks `scripts/pre-commit.sh` into `.git/hooks/pre-commit`.
 | Linting | `cargo clippy --all-targets --all-features -- -D warnings` | Any warning |
 | Tests | `cargo test --all-features` | Any test failure |
 | Build | `cargo build --all-features` | Any compilation error |
+| Audit | `cargo audit` | Known crate vulnerabilities |
 
-All 4 must pass before `git commit` completes.
+All 5 must pass before `git commit` completes.
 
 ### Bypass (emergency only)
 

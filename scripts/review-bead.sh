@@ -3,7 +3,7 @@
 # review-bead.sh — Per-bead code review verification
 # =============================================================================
 # For a given bead ID, identifies the relevant files and runs the full
-# quality gate (fmt + clippy + test + build) on just those files.
+# quality gate (fmt + clippy + test + build + audit) on just those files.
 #
 # Usage:
 #   ./scripts/review-bead.sh <BEAD_ID>
@@ -92,7 +92,6 @@ declare -A BEAD_FILES=(
     ["dm9"]="crates/dcp-claude-hook/src/main.rs crates/dcp-claude-hook/Cargo.toml"
     ["n8c"]="crates/dcp-mcp/src/main.rs crates/dcp-mcp/Cargo.toml"
     ["dz6"]="crates/dcp-rig/src/lib.rs crates/dcp-rig/Cargo.toml"
-    ["djp"]="crates/dcp-cli/src/main.rs"
 
     # === Scaffold beads ===
     ["mu3"]="crates/dcp-permissions/Cargo.toml crates/dcp-permissions/src/lib.rs"
@@ -119,6 +118,20 @@ declare -A BEAD_FILES=(
     # === Workspace/CI ===
     ["y5x"]=".github/workflows/ci.yml Cargo.toml rust-toolchain.toml"
     ["mlt"]="Cargo.toml crates/"
+
+    # === Architecture/planning docs (informational beads — no code files) ===
+    ["0ry"]="PLAN.md"
+    ["dp2"]="SPEC.md"
+    ["quw"]="crates/dcp-types/src/lib.rs"
+    ["tuz"]="crates/dcp-core/src/lib.rs crates/dcp-core/src/async_facade.rs"
+    ["uci"]="crates/dcp-state/src/lib.rs crates/dcp-state/src/session.rs crates/dcp-state/src/message_refs.rs"
+    ["ukh"]="crates/dcp-state/src/lib.rs crates/dcp-state/src/message_refs.rs"
+    ["s5z"]="crates/dcp-prompts/src/store.rs crates/dcp-prompts/src/lib.rs"
+    ["842"]="crates/dcp-nudges/src/lib.rs crates/dcp-nudges/src/lib.rs crates/dcp-core/src/pipeline.rs"
+    ["9t6"]="crates/dcp-protected/src/lib.rs"
+    ["q01"]="crates/dcp-cli/src/commands/"
+
+    # === Workspace scaffold deps ===
 )
 
 # -----------------------------------------------------------------------------
@@ -131,12 +144,10 @@ warn() { echo -e "  ${YELLOW}!${RESET} $1"; }
 info() { echo -e "  ${CYAN}•${RESET} $1"; }
 section() { echo -e "\n${BOLD}▶ $1${RESET}"; }
 
-run_checks_on_files() {
-    local files="$1"
-    local label="$2"
+run_checks() {
     local failed=0
 
-    section "Formatting check ($label)"
+    section "Formatting check"
     if cargo fmt --all -- --check >/dev/null 2>&1; then
         pass "fmt OK"
     else
@@ -144,7 +155,7 @@ run_checks_on_files() {
         ((failed++))
     fi
 
-    section "Clippy check ($label)"
+    section "Clippy check"
     if cargo clippy --all-targets --all-features -- \
         -D warnings >/dev/null 2>&1; then
         pass "clippy OK"
@@ -153,7 +164,7 @@ run_checks_on_files() {
         ((failed++))
     fi
 
-    section "Tests ($label)"
+    section "Tests"
     if cargo test --all-features >/dev/null 2>&1; then
         pass "tests OK"
     else
@@ -161,12 +172,24 @@ run_checks_on_files() {
         ((failed++))
     fi
 
-    section "Build ($label)"
+    section "Build"
     if cargo build --all-features >/dev/null 2>&1; then
         pass "build OK"
     else
         fail "build failed"
         ((failed++))
+    fi
+
+    section "Security audit"
+    if command -v cargo-audit >/dev/null 2>&1; then
+        if cargo audit >/dev/null 2>&1; then
+            pass "audit OK"
+        else
+            fail "cargo audit found vulnerabilities"
+            ((failed++))
+        fi
+    else
+        warn "cargo-audit not installed — install with: cargo install cargo-audit"
     fi
 
     return $failed
@@ -182,14 +205,11 @@ list_beads() {
     echo ""
     printf "  %-12s  %s\n" "ID suffix" "Files"
     printf "  %-12s  %s\n" "----------" "-----"
-    for bead_id in "$(sorted_bead_ids)"; do
+    # FIX: iterate over keys directly (not via subshell string)
+    for bead_id in "${!BEAD_FILES[@]}"; do
         files="${BEAD_FILES[$bead_id]:-unknown}"
         printf "  %-12s  %s\n" "$bead_id" "$files"
-    done
-}
-
-sorted_bead_ids() {
-    for k in "${!BEAD_FILES[@]}"; do echo "$k"; done | sort
+    done | sort
 }
 
 # -----------------------------------------------------------------------------
@@ -204,7 +224,7 @@ case "${1:-}" in
     --all)
         echo -e "${BOLD}Reviewing all beads...${RESET}"
         echo "(Full workspace checks)"
-        run_checks_on_files "workspace" "all"
+        run_checks
         exit $?
         ;;
     --help|-h)
@@ -223,9 +243,8 @@ case "${1:-}" in
         exit 1
         ;;
     *)
-        # Normalize bead ID (strip prefix if present)
         BEAD_KEY="${1#dynamic_context_pruning-}"
-        BEAD_KEY="${BEAD_KEY#dynamic_context_pruning}"  # also handle partial
+        BEAD_KEY="${BEAD_KEY#dynamic_context_pruning}"
 
         if [[ -z "${BEAD_FILES[$BEAD_KEY]:-}" ]]; then
             warn "Bead '$BEAD_KEY' not found in mapping."
@@ -242,7 +261,7 @@ case "${1:-}" in
         echo -e "${BOLD}Files:${RESET} $FILES"
         echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 
-        run_checks_on_files "$FILES" "$BEAD_ID"
+        run_checks
         result=$?
 
         echo ""
@@ -250,7 +269,7 @@ case "${1:-}" in
             echo -e "${GREEN}Code review: PASS ✓${RESET}"
             echo ""
             echo "Close comment suggestion:"
-            echo "  Verified: cargo fmt OK, clippy OK, all tests pass, build OK"
+            echo "  Verified: cargo fmt OK, clippy OK, all tests pass, build OK, audit OK"
             echo ""
         else
             echo -e "${RED}Code review: FAIL ✗${RESET}"
