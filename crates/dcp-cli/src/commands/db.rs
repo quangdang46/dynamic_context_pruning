@@ -5,52 +5,63 @@
 //! behind the `scripts` feature — existing commands (stats, find-session,
 //! timeline) use `FileStateStore` and do not depend on this module.
 //!
-//! # Schema
-//!
-//! The opencode DB stores projects, sessions, messages, and parts as JSON
-//! blobs. The expected table shapes are:
+//! # Actual opencode Schema (verified against live DB)
 //!
 //! ```sql
 //! CREATE TABLE project (
 //!     id TEXT PRIMARY KEY,
 //!     directory TEXT,
-//!     data TEXT  -- JSON: {created_at, last_updated, ...}
+//!     data TEXT  -- JSON blob
 //! );
 //!
 //! CREATE TABLE session (
 //!     id TEXT PRIMARY KEY,
-//!     project_id TEXT REFERENCES project(id),
+//!     project_id TEXT,
+//!     parent_id TEXT,
+//!     slug TEXT,
 //!     directory TEXT,
-//!     created_at INTEGER,   -- unix timestamp ms
-//!     last_updated INTEGER,
-//!     message_count INTEGER DEFAULT 0,
-//!     total_tokens INTEGER DEFAULT 0,
-//!     state TEXT,           -- JSON: session state blob
-//!     data TEXT             -- JSON: {stats, model, ...}
+//!     title TEXT,                  -- session title (may contain model info)
+//!     version TEXT,
+//!     share_url TEXT,
+//!     summary_additions INTEGER,
+//!     summary_deletions INTEGER,
+//!     summary_files INTEGER,
+//!     summary_diffs TEXT,
+//!     revert TEXT,
+//!     permission TEXT,
+//!     time_created INTEGER,          -- unix timestamp ms
+//!     time_updated INTEGER,          -- unix timestamp ms
+//!     time_compacting INTEGER,
+//!     time_archived INTEGER,
+//!     workspace_id TEXT,
+//!     path TEXT,
+//!     agent TEXT,                   -- agent name (e.g. "build")
+//!     model TEXT,                   -- JSON: {"id":"...","providerID":"..."}
+//!     cost REAL,
+//!     tokens_input INTEGER,
+//!     tokens_output INTEGER,
+//!     tokens_reasoning INTEGER,
+//!     tokens_cache_read INTEGER,
+//!     tokens_cache_write INTEGER
 //! );
 //!
 //! CREATE TABLE message (
 //!     id TEXT PRIMARY KEY,
-//!     session_id TEXT REFERENCES session(id),
-//!     role TEXT,            -- 'user' | 'assistant' | 'system'
-//!     parts TEXT,           -- JSON array of part objects
-//!     token_count INTEGER DEFAULT 0,
-//!     finish_reason TEXT,   -- 'stop' | 'length' | 'error' | null
-//!     is_final INTEGER,     -- boolean (0/1)
-//!     created_at INTEGER,   -- unix timestamp ms
-//!     data TEXT             -- JSON: additional metadata
+//!     session_id TEXT,
+//!     time_created INTEGER,          -- unix timestamp ms
+//!     time_updated INTEGER,
+//!     data TEXT                     -- JSON: role, model, tokens, finish, etc.
 //! );
 //!
 //! CREATE TABLE part (
 //!     id TEXT PRIMARY KEY,
-//!     message_id TEXT REFERENCES message(id),
-//!     type TEXT,            -- 'text' | 'reasoning' | 'tool_call' | 'tool_result'
-//!     data TEXT             -- JSON: part content + metadata
+//!     message_id TEXT,
+//!     session_id TEXT,
+//!     time_created INTEGER,
+//!     time_updated INTEGER,
+//!     data TEXT                     -- JSON: {"type":"text"|"reasoning"|..., "text":...}
 //! );
 //! ```
-//!
-//! The adapter is tolerant of schema variations — missing columns result in
-//! `None` / default values rather than errors.
 
 use serde::{Deserialize, Serialize};
 
@@ -76,15 +87,27 @@ fn default_opencode_db_path() -> std::path::PathBuf {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub struct ProjectRow {
-    /// Project UUID.
     pub id: String,
-    /// Working directory of the project.
-    pub directory: String,
-    /// Full JSON blob stored in the `data` column.
-    pub data: serde_json::Value,
+    pub worktree: String,
+    pub vcs: String,
+    pub name: String,
+    pub icon_url: Option<String>,
+    pub icon_color: Option<String>,
+    pub time_created: i64,
+    pub time_updated: i64,
+    pub time_initialized: i64,
+    pub sandboxes: Option<String>,
+    pub commands: Option<String>,
+    pub icon_url_override: Option<String>,
 }
 
 /// A row from the `session` table.
+///
+/// Fields are mapped from the actual opencode `session` table columns:
+/// `id, project_id, directory, title, agent, model, cost,
+///  tokens_input, tokens_output, tokens_reasoning,
+///  tokens_cache_read, tokens_cache_write,
+///  time_created, time_updated, data`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionRow {
     /// Session UUID.
@@ -93,39 +116,84 @@ pub struct SessionRow {
     pub project_id: Option<String>,
     /// Working directory associated with this session.
     pub directory: Option<String>,
+    /// Session title (may contain model info).
+    pub title: Option<String>,
+    /// Agent name (e.g. "build").
+    pub agent: Option<String>,
+    /// Model info as JSON string (e.g. `'{"id":"gpt-4o","providerID":"openai"}'`).
+    pub model: Option<String>,
+    /// Total cost in USD.
+    pub cost: f64,
+    /// Input token count.
+    pub tokens_input: i64,
+    /// Output token count.
+    pub tokens_output: i64,
+    /// Reasoning token count.
+    pub tokens_reasoning: i64,
+    /// Cache read token count.
+    pub tokens_cache_read: i64,
+    /// Cache write token count.
+    pub tokens_cache_write: i64,
     /// Unix timestamp (ms) when the session was created.
-    pub created_at: i64,
+    pub time_created: i64,
     /// Unix timestamp (ms) of the last update.
-    pub last_updated: i64,
-    /// Number of messages in the session.
-    pub message_count: i64,
-    /// Total token count for the session.
-    pub total_tokens: i64,
-    /// JSON state blob (session state).
-    pub state: Option<String>,
-    /// Full JSON blob stored in the `data` column.
-    pub data: serde_json::Value,
+    pub time_updated: i64,
 }
 
-/// A message with its `parts` array already deserialized.
+/// A message with its associated parts from the `part` table.
+///
+/// Role, token count, and finish reason are extracted from `message.data` JSON:
+/// ```json
+/// {
+///   "role": "user"|"assistant",
+///   "tokens": {"total": N, "input": N, "output": N, "reasoning": N, "cache": {...}},
+///   "finish": "stop"|"tool-calls"|null,
+///   ...
+/// }
+/// ```
+///
+/// Parts are loaded from the `part` table via LEFT JOIN. Each `part.data` JSON:
+/// ```json
+/// {"type": "text"|"reasoning"|"step-start"|..., "text": "..."}
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageWithParts {
     /// Message UUID.
     pub message_id: String,
     /// Parent session UUID.
     pub session_id: String,
-    /// Role: `user`, `assistant`, `system`.
+    /// Role extracted from `message.data["role"]`: `user`, `assistant`, `system`.
     pub role: String,
-    /// Deserialized parts array from the `parts` JSON column.
-    pub parts: Vec<serde_json::Value>,
-    /// Token count for this message.
+    /// Deserialized parts from the `part` table (one entry per part row).
+    /// Each `PartData` has `type` and `text`/`snapshot` fields.
+    pub parts: Vec<PartData>,
+    /// Token count extracted from `message.data["tokens"]["total"]`.
     pub token_count: i64,
-    /// Finish reason: `stop`, `length`, `error`, or null.
+    /// Input token count from `message.data["tokens"]["input"]` (0 if not present).
+    pub tokens_input: i64,
+    /// Output token count from `message.data["tokens"]["output"]` (0 if not present).
+    pub tokens_output: i64,
+    /// Reasoning token count from `message.data["tokens"]["reasoning"]` (0 if not present).
+    pub tokens_reasoning: i64,
+    /// Finish reason extracted from `message.data["finish"]`.
     pub finish_reason: Option<String>,
-    /// Whether this is a final (nonstreaming) message.
-    pub is_final: bool,
     /// Unix timestamp (ms) when the message was created.
-    pub created_at: i64,
+    pub time_created: i64,
+}
+
+/// A single part from the `part` table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PartData {
+    /// Part type: "text", "reasoning", "step-start", etc.
+    #[serde(rename = "type")]
+    pub part_type: String,
+    /// Text content (present for "text" and "reasoning" types).
+    pub text: Option<String>,
+    /// Snapshot (present for "step-start" type).
+    pub snapshot: Option<String>,
+    /// Raw JSON data for any additional fields.
+    #[serde(flatten)]
+    pub extra: serde_json::Value,
 }
 
 // ---------------------------------------------------------------------------
@@ -153,45 +221,59 @@ impl OpencodeDb {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(default_opencode_db_path);
 
-        // Create parent directory if missing (opencode creates on first run)
-        if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| anyhow::anyhow!("failed to create opencode data dir: {}", e))?;
-        }
-
         let conn = Connection::open(&db_path)
             .map_err(|e| anyhow::anyhow!("failed to open opencode DB at {:?}: {}", db_path, e))?;
 
-        Ok(Self { conn })
+        Ok(OpencodeDb { conn })
     }
 
-    /// List all projects, ordered by ID.
+    // -------------------------------------------------------------------------
+    // Project queries
+    // -------------------------------------------------------------------------
+
+    /// List all projects.
     #[cfg(feature = "scripts")]
     #[allow(dead_code)]
     pub fn list_projects(&self) -> anyhow::Result<Vec<ProjectRow>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, directory, data FROM project ORDER BY id")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, worktree, vcs, name, icon_url, icon_color, \
+             time_created, time_updated, time_initialized, \
+             sandboxes, commands, icon_url_override \
+             FROM project ORDER BY id",
+        )?;
 
-        let rows = stmt
-            .query_map([], |row| {
-                let data_str: String = row.get(2)?;
-                let data: serde_json::Value = serde_json::from_str(&data_str).unwrap_or_default();
-                Ok(ProjectRow {
-                    id: row.get(0)?,
-                    directory: row.get(1)?,
-                    data,
-                })
+        let rows = stmt.query_map([], |row| {
+            Ok(ProjectRow {
+                id: row.get(0)?,
+                worktree: row.get(1)?,
+                vcs: row.get(2)?,
+                name: row.get(3)?,
+                icon_url: row.get(4)?,
+                icon_color: row.get(5)?,
+                time_created: row.get(6)?,
+                time_updated: row.get(7)?,
+                time_initialized: row.get(8)?,
+                sandboxes: row.get(9)?,
+                commands: row.get(10)?,
+                icon_url_override: row.get(11)?,
             })
-            .map_err(|e| anyhow::anyhow!("list_projects query failed: {}", e))?;
+        })?;
 
         rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| anyhow::anyhow!("list_projects row error: {}", e))
+            .map_err(|e| anyhow::anyhow!("list_projects error: {}", e))
     }
 
-    /// List sessions, optionally filtered by `directory`, capped at `limit`.
+    // -------------------------------------------------------------------------
+    // Session queries
+    // -------------------------------------------------------------------------
+
+    /// List sessions, optionally filtered by directory.
     ///
-    /// When `directory` is `None`, returns the most recently updated sessions.
+    /// Queries actual opencode session columns:
+    /// `id, project_id, directory, title, agent, model, cost,
+    ///  tokens_input, tokens_output, tokens_reasoning,
+    ///  tokens_cache_read, tokens_cache_write,
+    ///  time_created, time_updated`
     #[cfg(feature = "scripts")]
     pub fn list_sessions(
         &self,
@@ -199,13 +281,17 @@ impl OpencodeDb {
         limit: usize,
     ) -> anyhow::Result<Vec<SessionRow>> {
         let sql = if directory.is_some() {
-            "SELECT id, project_id, directory, created_at, last_updated, message_count, \
-             total_tokens, state, data \
-             FROM session WHERE directory = ?1 ORDER BY last_updated DESC LIMIT ?2"
+            "SELECT id, project_id, directory, title, agent, model, cost, \
+             tokens_input, tokens_output, tokens_reasoning, \
+             tokens_cache_read, tokens_cache_write, \
+             time_created, time_updated \
+             FROM session WHERE directory = ?1 ORDER BY time_updated DESC LIMIT ?2"
         } else {
-            "SELECT id, project_id, directory, created_at, last_updated, message_count, \
-             total_tokens, state, data \
-             FROM session ORDER BY last_updated DESC LIMIT ?1"
+            "SELECT id, project_id, directory, title, agent, model, cost, \
+             tokens_input, tokens_output, tokens_reasoning, \
+             tokens_cache_read, tokens_cache_write, \
+             time_created, time_updated \
+             FROM session ORDER BY time_updated DESC LIMIT ?1"
         };
 
         let mut stmt = self.conn.prepare(sql)?;
@@ -220,12 +306,14 @@ impl OpencodeDb {
             .map_err(|e| anyhow::anyhow!("list_sessions error: {}", e))
     }
 
-    /// Get a single session by ID. Returns `None` if not found.
+    /// Get a single session by ID.
     #[cfg(feature = "scripts")]
     pub fn get_session(&self, session_id: &str) -> anyhow::Result<Option<SessionRow>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, project_id, directory, created_at, last_updated, message_count, \
-             total_tokens, state, data \
+            "SELECT id, project_id, directory, title, agent, model, cost, \
+             tokens_input, tokens_output, tokens_reasoning, \
+             tokens_cache_read, tokens_cache_write, \
+             time_created, time_updated \
              FROM session WHERE id = ?1",
         )?;
 
@@ -238,21 +326,34 @@ impl OpencodeDb {
         .map_err(|e: rusqlite::Error| anyhow::anyhow!("get_session error: {}", e))
     }
 
-    /// Get all messages for a session, ordered by creation time.
+    // -------------------------------------------------------------------------
+    // Message queries (JOIN with part table)
+    // -------------------------------------------------------------------------
+
+    /// Get all messages for a session with their parts, ordered by creation time.
+    ///
+    /// Does a LEFT JOIN with the `part` table to load all parts per message.
+    /// Multiple parts for the same message are aggregated into `msg.parts`.
     #[cfg(feature = "scripts")]
     pub fn get_session_messages(&self, session_id: &str) -> anyhow::Result<Vec<MessageWithParts>> {
+        // Join message + part tables, aggregate parts per message
         let mut stmt = self.conn.prepare(
-            "SELECT id, session_id, role, parts, token_count, finish_reason, is_final, created_at \
-             FROM message WHERE session_id = ?1 ORDER BY created_at ASC",
+            "SELECT \
+                m.id, m.session_id, m.time_created, m.data, \
+                p.data \
+             FROM message m \
+             LEFT JOIN part p ON m.id = p.message_id \
+             WHERE m.session_id = ?1 \
+             ORDER BY m.time_created ASC, p.time_created ASC",
         )?;
 
         let rows = stmt.query_map(params![session_id], message_row_map)?;
 
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| anyhow::anyhow!("get_session_messages error: {}", e))
+        // Aggregate parts per message (group by message_id)
+        aggregate_messages(rows).map_err(|e| anyhow::anyhow!("get_session_messages error: {}", e))
     }
 
-    /// Get a single message within a session. Returns `None` if not found.
+    /// Get a single message within a session by message ID.
     #[cfg(feature = "scripts")]
     pub fn get_session_message(
         &self,
@@ -260,17 +361,21 @@ impl OpencodeDb {
         message_id: &str,
     ) -> anyhow::Result<Option<MessageWithParts>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, session_id, role, parts, token_count, finish_reason, is_final, created_at \
-             FROM message WHERE session_id = ?1 AND id = ?2",
+            "SELECT \
+                m.id, m.session_id, m.time_created, m.data, \
+                p.data \
+             FROM message m \
+             LEFT JOIN part p ON m.id = p.message_id \
+             WHERE m.session_id = ?1 AND m.id = ?2 \
+             ORDER BY m.time_created ASC, p.time_created ASC",
         )?;
 
-        let mut rows = stmt.query_map(params![session_id, message_id], message_row_map)?;
+        let rows = stmt.query_map(params![session_id, message_id], message_row_map)?;
 
-        match rows.next() {
-            Some(result) => Ok(Some(result?)),
-            None => Ok(None),
+        match aggregate_messages(rows) {
+            Ok(mut msgs) => Ok(msgs.pop()),
+            Err(e) => Err(e),
         }
-        .map_err(|e: rusqlite::Error| anyhow::anyhow!("get_session_message error: {}", e))
     }
 }
 
@@ -278,44 +383,145 @@ impl OpencodeDb {
 // Row mappers
 // ---------------------------------------------------------------------------
 
+/// Map a session row (15 columns + data) to SessionRow.
 #[cfg(feature = "scripts")]
 fn session_row_map(row: &rusqlite::Row) -> rusqlite::Result<SessionRow> {
-    let data_str: String = row.get(8)?;
-    let data: serde_json::Value = serde_json::from_str(&data_str).unwrap_or_default();
-    let state_str: Option<String> = row.get(7)?;
-
     Ok(SessionRow {
         id: row.get(0)?,
         project_id: row.get(1)?,
         directory: row.get(2)?,
-        created_at: row.get(3)?,
-        last_updated: row.get(4)?,
-        message_count: row.get(5)?,
-        total_tokens: row.get(6)?,
-        state: state_str,
-        data,
+        title: row.get(3)?,
+        agent: row.get(4)?,
+        model: row.get(5)?,
+        cost: row.get(6)?,
+        tokens_input: row.get(7)?,
+        tokens_output: row.get(8)?,
+        tokens_reasoning: row.get(9)?,
+        tokens_cache_read: row.get(10)?,
+        tokens_cache_write: row.get(11)?,
+        time_created: row.get(12)?,
+        time_updated: row.get(13)?,
     })
 }
 
+/// Map a single (message, part) row to `RawMessageRow`.
 #[cfg(feature = "scripts")]
-fn message_row_map(row: &rusqlite::Row) -> rusqlite::Result<MessageWithParts> {
-    let parts_str: String = row.get(3)?;
-    let parts: Vec<serde_json::Value> = serde_json::from_str::<serde_json::Value>(&parts_str)
-        .ok()
-        .and_then(|v| v.as_array().cloned())
-        .unwrap_or_default();
-    let finish_reason: Option<String> = row.get(5)?;
+fn message_row_map(row: &rusqlite::Row) -> rusqlite::Result<RawMessageRow> {
+    let data_str: String = row.get(3)?;
+    let data: serde_json::Value =
+        serde_json::from_str(&data_str).unwrap_or(serde_json::Value::Null);
+    let part_data_str: Option<String> = row.get(4)?;
+    let part_data: Option<PartData> = part_data_str.and_then(|s| serde_json::from_str(&s).ok());
 
-    Ok(MessageWithParts {
+    Ok(RawMessageRow {
         message_id: row.get(0)?,
         session_id: row.get(1)?,
-        role: row.get(2)?,
-        parts,
-        token_count: row.get(4)?,
-        finish_reason,
-        is_final: row.get::<_, i32>(6)? != 0,
-        created_at: row.get(7)?,
+        time_created: row.get(2)?,
+        message_data: data,
+        part: part_data,
     })
+}
+
+/// Intermediate row type for aggregating multiple part rows per message.
+#[cfg(feature = "scripts")]
+struct RawMessageRow {
+    message_id: String,
+    session_id: String,
+    time_created: i64,
+    message_data: serde_json::Value,
+    part: Option<PartData>,
+}
+
+/// Aggregate rows from the (message LEFT JOIN part) query into `MessageWithParts`.
+///
+/// Each call returns one (message, part) pair. Multiple rows with the same
+/// `message_id` represent multiple parts of the same message. We aggregate
+/// them into a single `MessageWithParts` with a `Vec<PartData>`.
+#[cfg(feature = "scripts")]
+fn aggregate_messages(
+    rows: impl Iterator<Item = Result<RawMessageRow, rusqlite::Error>>,
+) -> Result<Vec<MessageWithParts>, anyhow::Error> {
+    let mut messages: Vec<MessageWithParts> = Vec::new();
+    let mut current_id: Option<String> = None;
+    let mut current_msg: Option<MessageWithParts> = None;
+
+    for row_result in rows {
+        let raw = row_result?;
+
+        if current_id.as_ref() != Some(&raw.message_id) {
+            // New message — push the previous one and start a new entry
+            if let Some(msg) = current_msg.take() {
+                messages.push(msg);
+            }
+
+            // Extract role from message.data["role"]
+            let role = raw
+                .message_data
+                .get("role")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            // Extract token_count from message.data["tokens"]["total"]
+            let tokens_json = raw.message_data.get("tokens");
+            let token_count = tokens_json
+                .and_then(|v| v.get("total"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let tokens_input = tokens_json
+                .and_then(|v| v.get("input"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let tokens_output = tokens_json
+                .and_then(|v| v.get("output"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let tokens_reasoning = tokens_json
+                .and_then(|v| v.get("reasoning"))
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+
+            // Extract finish_reason from message.data["finish"]
+            let finish_reason = raw
+                .message_data
+                .get("finish")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            let mut parts = Vec::new();
+            if let Some(p) = raw.part {
+                parts.push(p);
+            }
+
+            current_msg = Some(MessageWithParts {
+                message_id: raw.message_id.clone(),
+                session_id: raw.session_id.clone(),
+                role,
+                parts,
+                token_count,
+                tokens_input,
+                tokens_output,
+                tokens_reasoning,
+                finish_reason,
+                time_created: raw.time_created,
+            });
+            current_id = Some(raw.message_id);
+        } else {
+            // Same message, additional part
+            if let Some(ref mut msg) = current_msg {
+                if let Some(p) = raw.part {
+                    msg.parts.push(p);
+                }
+            }
+        }
+    }
+
+    // Don't forget the last message
+    if let Some(msg) = current_msg {
+        messages.push(msg);
+    }
+
+    Ok(messages)
 }
 
 // ---------------------------------------------------------------------------
@@ -335,10 +541,6 @@ mod tests {
         // Opening a non-existent DB should succeed (creates an empty file)
         let db = OpencodeDb::open(Some(db_path.to_str().unwrap()));
         assert!(db.is_ok());
-
-        // The DB is empty (no tables) — that's fine, we tolerate missing tables
-        // when the schema hasn't been initialized yet. Use the table-creating
-        // tests below to verify query behavior against a properly initialized DB.
     }
 
     #[test]
@@ -347,25 +549,25 @@ mod tests {
         let db_path = tmp.path().join("test_opencode.db");
         let db = OpencodeDb::open(Some(db_path.to_str().unwrap())).unwrap();
 
-        // Create the project table manually
+        // Create the project table with actual schema
         db.conn
             .execute(
-                "CREATE TABLE IF NOT EXISTS project (id TEXT PRIMARY KEY, directory TEXT, data TEXT)",
+                "CREATE TABLE IF NOT EXISTS project (id TEXT PRIMARY KEY, worktree TEXT, vcs TEXT, name TEXT, icon_url TEXT, icon_color TEXT, time_created INTEGER, time_updated INTEGER, time_initialized INTEGER, sandboxes TEXT, commands TEXT, icon_url_override TEXT)",
                 [],
             )
             .unwrap();
 
         db.conn
             .execute(
-                "INSERT INTO project (id, directory, data) VALUES (?1, ?2, ?3)",
-                params!["proj-1", "/tmp/test", r#"{"name":"test-project"}"#],
+                "INSERT INTO project (id, worktree, vcs, name, icon_url, icon_color, time_created, time_updated, time_initialized, sandboxes, commands, icon_url_override) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                params!["proj-1", "/tmp/test", "", "", "", "", 0, 0, 0, "", "", ""],
             )
             .unwrap();
 
         let projects = db.list_projects().unwrap();
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].id, "proj-1");
-        assert_eq!(projects[0].directory, "/tmp/test");
+        assert_eq!(projects[0].worktree, "/tmp/test");
     }
 
     #[test]
@@ -374,32 +576,43 @@ mod tests {
         let db_path = tmp.path().join("test_opencode.db");
         let db = OpencodeDb::open(Some(db_path.to_str().unwrap())).unwrap();
 
+        // Create session table with ACTUAL opencode schema columns
         db.conn
             .execute(
-                "CREATE TABLE IF NOT EXISTS session (id TEXT PRIMARY KEY, project_id TEXT, \
-                 directory TEXT, created_at INTEGER, last_updated INTEGER, \
-                 message_count INTEGER DEFAULT 0, total_tokens INTEGER DEFAULT 0, \
-                 state TEXT, data TEXT)",
+                "CREATE TABLE IF NOT EXISTS session (\
+                 id TEXT PRIMARY KEY, project_id TEXT, directory TEXT, \
+                 title TEXT, agent TEXT, model TEXT, cost REAL, \
+                 tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER, \
+                 tokens_cache_read INTEGER, tokens_cache_write INTEGER, \
+                 time_created INTEGER, time_updated INTEGER, data TEXT)",
                 [],
             )
             .unwrap();
 
-        let none_str: Option<String> = None;
         db.conn
             .execute(
-                "INSERT INTO session (id, project_id, directory, created_at, last_updated, \
-                 message_count, total_tokens, state, data) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO session \
+                 (id, project_id, directory, title, agent, model, cost, \
+                  tokens_input, tokens_output, tokens_reasoning, \
+                  tokens_cache_read, tokens_cache_write, \
+                  time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     "sess-1",
                     "proj-1",
                     "/tmp/test",
+                    "Test Session",
+                    "build",
+                    r#"{"id":"gpt-4o","providerID":"openai"}"#,
+                    0.05,
+                    1000_i64,
+                    500_i64,
+                    100_i64,
+                    0_i64,
+                    0_i64,
                     1718000000000_i64,
                     1718003600000_i64,
-                    10_i64,
-                    5000_i64,
-                    &none_str,
-                    r#"{"model":"gpt-4o"}"#
+                    r#"{"extra":"field"}"#
                 ],
             )
             .unwrap();
@@ -408,8 +621,18 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "sess-1");
         assert_eq!(sessions[0].project_id, Some("proj-1".to_string()));
-        assert_eq!(sessions[0].message_count, 10);
-        assert_eq!(sessions[0].total_tokens, 5000);
+        assert_eq!(sessions[0].title, Some("Test Session".to_string()));
+        assert_eq!(sessions[0].agent, Some("build".to_string()));
+        assert_eq!(
+            sessions[0].model,
+            Some(r#"{"id":"gpt-4o","providerID":"openai"}"#.to_string())
+        );
+        assert!((sessions[0].cost - 0.05).abs() < 0.001);
+        assert_eq!(sessions[0].tokens_input, 1000);
+        assert_eq!(sessions[0].tokens_output, 500);
+        assert_eq!(sessions[0].tokens_reasoning, 100);
+        assert_eq!(sessions[0].time_created, 1718000000000_i64);
+        assert_eq!(sessions[0].time_updated, 1718003600000_i64);
     }
 
     #[test]
@@ -418,58 +641,103 @@ mod tests {
         let db_path = tmp.path().join("test_opencode.db");
         let db = OpencodeDb::open(Some(db_path.to_str().unwrap())).unwrap();
 
+        // Create tables with ACTUAL opencode schema
         db.conn
             .execute(
-                "CREATE TABLE IF NOT EXISTS message (id TEXT PRIMARY KEY, session_id TEXT, \
-                 role TEXT, parts TEXT, token_count INTEGER DEFAULT 0, \
-                 finish_reason TEXT, is_final INTEGER, created_at INTEGER)",
+                "CREATE TABLE IF NOT EXISTS message (\
+                 id TEXT PRIMARY KEY, session_id TEXT, \
+                 time_created INTEGER, time_updated INTEGER, data TEXT)",
                 [],
             )
             .unwrap();
 
         db.conn
             .execute(
-                "INSERT INTO message (id, session_id, role, parts, token_count, \
-                 finish_reason, is_final, created_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "CREATE TABLE IF NOT EXISTS part (\
+                 id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, \
+                 time_created INTEGER, time_updated INTEGER, data TEXT)",
+                [],
+            )
+            .unwrap();
+
+        // Insert a user message (no tokens)
+        db.conn
+            .execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![
                     "msg-1",
                     "sess-1",
-                    "user",
-                    r#"[{"type":"text","text":"Hello"}]"#,
-                    100_i64,
-                    Option::<&str>::None,
-                    1_i32,
-                    1718000000000_i64
+                    1718000000000_i64,
+                    1718000000000_i64,
+                    r#"{"role":"user","agent":"build"}"#
                 ],
             )
             .unwrap();
 
+        // Insert a part for msg-1
         db.conn
             .execute(
-                "INSERT INTO message (id, session_id, role, parts, token_count, \
-                 finish_reason, is_final, created_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    "prt-1",
+                    "msg-1",
+                    "sess-1",
+                    1718000000000_i64,
+                    1718000000000_i64,
+                    r#"{"type":"text","text":"Hello"}"#
+                ],
+            )
+            .unwrap();
+
+        // Insert an assistant message (has tokens)
+        db.conn
+            .execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
                 params![
                     "msg-2",
                     "sess-1",
-                    "assistant",
-                    r#"[{"type":"text","text":"Hi there!"}]"#,
-                    50_i64,
-                    "stop",
-                    1_i32,
-                    1718000060000_i64
+                    1718000060000_i64,
+                    1718000060000_i64,
+                    r#"{"role":"assistant","finish":"stop","tokens":{"total":50,"input":0,"output":50,"reasoning":0}}"#
+                ],
+            )
+            .unwrap();
+
+        // Insert part for msg-2
+        db.conn
+            .execute(
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    "prt-2",
+                    "msg-2",
+                    "sess-1",
+                    1718000060000_i64,
+                    1718000060000_i64,
+                    r#"{"type":"text","text":"Hi there!"}"#
                 ],
             )
             .unwrap();
 
         let messages = db.get_session_messages("sess-1").unwrap();
         assert_eq!(messages.len(), 2);
+
         assert_eq!(messages[0].message_id, "msg-1");
         assert_eq!(messages[0].role, "user");
-        assert_eq!(messages[0].parts[0]["type"], "text");
+        assert_eq!(messages[0].parts.len(), 1);
+        assert_eq!(messages[0].parts[0].part_type, "text");
+        assert_eq!(messages[0].parts[0].text, Some("Hello".to_string()));
+        assert_eq!(messages[0].token_count, 0); // no tokens in user msg
+
+        assert_eq!(messages[1].message_id, "msg-2");
         assert_eq!(messages[1].role, "assistant");
         assert_eq!(messages[1].finish_reason, Some("stop".to_string()));
+        assert_eq!(messages[1].token_count, 50);
+        assert_eq!(messages[1].parts.len(), 1);
+        assert_eq!(messages[1].parts[0].text, Some("Hi there!".to_string()));
 
         // Direct lookup
         let msg = db.get_session_message("sess-1", "msg-1").unwrap();
@@ -489,28 +757,39 @@ mod tests {
 
         db.conn
             .execute(
-                "CREATE TABLE IF NOT EXISTS session (id TEXT PRIMARY KEY, project_id TEXT, \
-                 directory TEXT, created_at INTEGER, last_updated INTEGER, \
-                 message_count INTEGER DEFAULT 0, total_tokens INTEGER DEFAULT 0, \
-                 state TEXT, data TEXT)",
+                "CREATE TABLE IF NOT EXISTS session (\
+                 id TEXT PRIMARY KEY, project_id TEXT, directory TEXT, \
+                 title TEXT, agent TEXT, model TEXT, cost REAL, \
+                 tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER, \
+                 tokens_cache_read INTEGER, tokens_cache_write INTEGER, \
+                 time_created INTEGER, time_updated INTEGER, data TEXT)",
                 [],
             )
             .unwrap();
 
         db.conn
             .execute(
-                "INSERT INTO session (id, project_id, directory, created_at, last_updated, \
-                 message_count, total_tokens, state, data) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO session \
+                 (id, project_id, directory, title, agent, model, cost, \
+                  tokens_input, tokens_output, tokens_reasoning, \
+                  tokens_cache_read, tokens_cache_write, \
+                  time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     "sess-1",
                     "proj-1",
                     "/home/user/project",
+                    "Session 1",
+                    "build",
+                    r#"{"id":"gpt-4o"}"#,
+                    0.0,
+                    0_i64,
+                    0_i64,
+                    0_i64,
+                    0_i64,
+                    0_i64,
                     1718000000000_i64,
                     1718003600000_i64,
-                    5_i64,
-                    2500_i64,
-                    Option::<&str>::None,
                     "{}"
                 ],
             )
@@ -518,18 +797,27 @@ mod tests {
 
         db.conn
             .execute(
-                "INSERT INTO session (id, project_id, directory, created_at, last_updated, \
-                 message_count, total_tokens, state, data) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO session \
+                 (id, project_id, directory, title, agent, model, cost, \
+                  tokens_input, tokens_output, tokens_reasoning, \
+                  tokens_cache_read, tokens_cache_write, \
+                  time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     "sess-2",
                     "proj-2",
                     "/tmp/other",
+                    "Session 2",
+                    "build",
+                    r#"{"id":"claude"}"#,
+                    0.0,
+                    0_i64,
+                    0_i64,
+                    0_i64,
+                    0_i64,
+                    0_i64,
                     1718000000000_i64,
                     1718003600000_i64,
-                    3_i64,
-                    1500_i64,
-                    Option::<&str>::None,
                     "{}"
                 ],
             )
@@ -553,10 +841,12 @@ mod tests {
 
         db.conn
             .execute(
-                "CREATE TABLE IF NOT EXISTS session (id TEXT PRIMARY KEY, project_id TEXT, \
-                 directory TEXT, created_at INTEGER, last_updated INTEGER, \
-                 message_count INTEGER DEFAULT 0, total_tokens INTEGER DEFAULT 0, \
-                 state TEXT, data TEXT)",
+                "CREATE TABLE IF NOT EXISTS session (\
+                 id TEXT PRIMARY KEY, project_id TEXT, directory TEXT, \
+                 title TEXT, agent TEXT, model TEXT, cost REAL, \
+                 tokens_input INTEGER, tokens_output INTEGER, tokens_reasoning INTEGER, \
+                 tokens_cache_read INTEGER, tokens_cache_write INTEGER, \
+                 time_created INTEGER, time_updated INTEGER, data TEXT)",
                 [],
             )
             .unwrap();
@@ -564,18 +854,27 @@ mod tests {
         for i in 0..5 {
             db.conn
                 .execute(
-                    "INSERT INTO session (id, project_id, directory, created_at, last_updated, \
-                     message_count, total_tokens, state, data) \
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    "INSERT INTO session \
+                     (id, project_id, directory, title, agent, model, cost, \
+                      tokens_input, tokens_output, tokens_reasoning, \
+                      tokens_cache_read, tokens_cache_write, \
+                      time_created, time_updated, data) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                     params![
                         format!("sess-{}", i),
                         Option::<&str>::None,
                         Option::<&str>::None,
+                        format!("Session {}", i),
+                        "build",
+                        r#"{"id":"gpt-4o"}"#,
+                        0.0,
+                        0_i64,
+                        0_i64,
+                        0_i64,
+                        0_i64,
+                        0_i64,
                         (1718000000 + i * 1000) as i64,
                         (1718003600 + i * 1000) as i64,
-                        1_i64,
-                        100_i64,
-                        Option::<&str>::None,
                         "{}"
                     ],
                 )

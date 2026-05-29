@@ -153,28 +153,35 @@ fn compute_session_stats(
     let mut reasoning_tokens: i64 = 0;
     let mut finish_reasons: BTreeMap<String, i64> = BTreeMap::new();
 
-    // Extract model from session data
+    // Extract model ID from session.model JSON (e.g. '{"id":"gpt-4o","providerID":"openai"}')
     let model = session
-        .data
-        .get("model")
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
+        .model
+        .as_ref()
+        .and_then(|m| serde_json::from_str::<serde_json::Value>(m).ok())
+        .and_then(|v| v.get("id").and_then(|id| id.as_str()).map(String::from))
+        .unwrap_or_else(|| "unknown".to_string());
 
     for msg in &messages {
-        match msg.role.as_str() {
-            "user" | "system" => input_tokens += msg.token_count,
-            "assistant" => output_tokens += msg.token_count,
-            _ => input_tokens += msg.token_count,
+        // Use the per-message token breakdown from message.data["tokens"].
+        // For assistant messages this is populated; for user messages it is 0.
+        if msg.tokens_input > 0 || msg.tokens_output > 0 {
+            input_tokens += msg.tokens_input;
+            output_tokens += msg.tokens_output;
+            reasoning_tokens += msg.tokens_reasoning;
+        } else {
+            // Fallback: distribute token_count by role
+            match msg.role.as_str() {
+                "user" | "system" => input_tokens += msg.token_count,
+                "assistant" => output_tokens += msg.token_count,
+                _ => input_tokens += msg.token_count,
+            }
         }
 
-        // Check parts for reasoning tokens
+        // Also add reasoning tokens from parts that have type "reasoning"
         for part in &msg.parts {
-            if let Some(ptype) = part.get("type").and_then(|v| v.as_str()) {
-                if ptype == "reasoning" {
-                    // Estimate reasoning tokens from text content
-                    if let Some(text) = part.get("text").and_then(|v| v.as_str()) {
-                        reasoning_tokens += text.chars().count() as i64 / 4;
-                    }
+            if part.part_type == "reasoning" {
+                if let Some(text) = part.text.as_ref() {
+                    reasoning_tokens += text.chars().count() as i64 / 4;
                 }
             }
         }
@@ -184,20 +191,12 @@ fn compute_session_stats(
         }
     }
 
-    // Estimate cache tokens from session data (opencode tracks cache metadata)
-    let cache_read_tokens: i64 = session
-        .data
-        .get("cache_read_tokens")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
-    let cache_write_tokens: i64 = session
-        .data
-        .get("cache_write_tokens")
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0);
+    // Cache tokens are direct columns on the session table
+    let cache_read_tokens: i64 = session.tokens_cache_read;
+    let cache_write_tokens: i64 = session.tokens_cache_write;
 
     // Compute cost
-    let (input_cost, output_cost) = token_cost_per_million(model).unwrap_or((5.0, 15.0));
+    let (input_cost, output_cost) = token_cost_per_million(&model).unwrap_or((5.0, 15.0));
     let cost_usd = (input_tokens as f64 * input_cost / 1_000_000.0)
         + (output_tokens as f64 * output_cost / 1_000_000.0);
 

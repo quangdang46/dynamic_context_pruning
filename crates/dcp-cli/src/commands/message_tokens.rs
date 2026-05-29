@@ -44,12 +44,20 @@ fn count_tokens_fallback(text: &str) -> usize {
     text.chars().count() / 4
 }
 
-/// Count tokens for a JSON-serialized message using Char4Tokenizer.
-/// Falls back to char/4 if the tokenizer is not available.
-fn count_message_tokens(parts_json: &[serde_json::Value]) -> usize {
-    // Serialize the full parts array to a string and count
-    let json_str = serde_json::to_string(parts_json).unwrap_or_default();
-    count_tokens_fallback(&json_str)
+/// Count tokens for a message's parts using Char4 approximation.
+/// Iterates over all text/reasoning parts and counts chars/4.
+fn count_message_tokens(parts: &[crate::commands::db::PartData]) -> usize {
+    let mut total = 0;
+    for part in parts {
+        if let Some(ref text) = part.text {
+            total += count_tokens_fallback(text);
+        }
+        // Also count snapshot content for step-start parts
+        if let Some(ref snap) = part.snapshot {
+            total += count_tokens_fallback(snap);
+        }
+    }
+    total
 }
 
 // ---------------------------------------------------------------------------
@@ -178,10 +186,10 @@ fn build_size_bar(value: usize, max: usize) -> String {
     FULL_CHAR.to_string().repeat(filled) + &EMPTY_CHAR.to_string().repeat(empty)
 }
 
-fn extract_preview(parts: &[serde_json::Value]) -> String {
+fn extract_preview(parts: &[crate::commands::db::PartData]) -> String {
     for part in parts {
-        if part.get("type").and_then(|v| v.as_str()) == Some("text") {
-            if let Some(text) = part.get("text").and_then(|v| v.as_str()) {
+        if part.part_type == "text" {
+            if let Some(ref text) = part.text {
                 let trimmed = text.trim();
                 if trimmed.len() > 40 {
                     return format!("{}...", &trimmed[..37]);
@@ -351,8 +359,18 @@ mod tests {
     #[test]
     fn extract_preview_text() {
         let parts = vec![
-            serde_json::json!({"type": "text", "text": "Hello world this is a test"}),
-            serde_json::json!({"type": "tool_call", "data": {}}),
+            crate::commands::db::PartData {
+                part_type: "text".to_string(),
+                text: Some("Hello world this is a test".to_string()),
+                snapshot: None,
+                extra: serde_json::json!({}),
+            },
+            crate::commands::db::PartData {
+                part_type: "tool_call".to_string(),
+                text: None,
+                snapshot: None,
+                extra: serde_json::json!({}),
+            },
         ];
         let preview = extract_preview(&parts);
         assert_eq!(preview, "Hello world this is a test");
@@ -361,7 +379,12 @@ mod tests {
     #[test]
     fn extract_preview_truncation() {
         let long_text = "a".repeat(100);
-        let parts = vec![serde_json::json!({"type": "text", "text": long_text})];
+        let parts = vec![crate::commands::db::PartData {
+            part_type: "text".to_string(),
+            text: Some(long_text),
+            snapshot: None,
+            extra: serde_json::json!({}),
+        }];
         let preview = extract_preview(&parts);
         assert!(preview.ends_with("..."));
         assert!(preview.len() <= 43); // 40 + "..."
@@ -370,8 +393,18 @@ mod tests {
     #[test]
     fn extract_preview_no_text() {
         let parts = vec![
-            serde_json::json!({"type": "tool_call", "tool": "bash", "data": {}}),
-            serde_json::json!({"type": "reasoning", "text": "thinking..."}),
+            crate::commands::db::PartData {
+                part_type: "tool_call".to_string(),
+                text: None,
+                snapshot: None,
+                extra: serde_json::json!({}),
+            },
+            crate::commands::db::PartData {
+                part_type: "reasoning".to_string(),
+                text: Some("thinking...".to_string()),
+                snapshot: None,
+                extra: serde_json::json!({}),
+            },
         ];
         let preview = extract_preview(&parts);
         assert_eq!(preview, "(no text)");
