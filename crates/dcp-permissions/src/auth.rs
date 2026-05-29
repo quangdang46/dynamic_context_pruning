@@ -37,6 +37,11 @@ pub fn get_authorization_header() -> Option<String> {
 
 /// Configures a [`reqwest::ClientBuilder`] with default basic-auth
 /// when `OPENCODE_SERVER_PASSWORD` is set.
+///
+/// NOTE: This function is only available in test builds because `reqwest`
+/// is a dev-dependency. Production code should use `get_authorization_header()`
+/// to obtain the header value and inject it into their own HTTP client.
+#[cfg(test)]
 pub fn configure_client_auth(client: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     if let Some(header) = get_authorization_header() {
         if let Some(encoded) = header.strip_prefix("Basic ") {

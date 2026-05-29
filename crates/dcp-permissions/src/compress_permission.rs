@@ -4,7 +4,7 @@
 
 use dcp_config::Config;
 use dcp_state::SessionState;
-use dcp_types::{CompressPermission, Message, Role};
+use dcp_types::{CompressPermission, Message};
 
 /// Returns the effective compress permission for the session.
 ///
@@ -25,68 +25,32 @@ pub fn compress_permission(state: &SessionState, config: &Config) -> CompressPer
     }
 }
 
-/// Find the last user message in `messages` that is not ignored.
-///
-/// Returns `None` if no qualifying message is found.
-fn find_last_user_message(messages: &[Message]) -> Option<&Message> {
-    messages
-        .iter()
-        .rev()
-        .find(|m| m.role == Role::User && !m.ignored)
-}
-
-/// Extract the agent name from the last user message's parts, if present.
-///
-/// Looks for an `agent` field in the message parts. This is a heuristic
-/// based on typical agent-assigned message formats.
-fn extract_agent_name_from_message(message: &Message) -> Option<String> {
-    // Walk parts in reverse to find agent info
-    for part in message.parts.iter().rev() {
-        #[allow(clippy::single_match, clippy::collapsible_match)]
-        match part {
-            dcp_types::Part::Text(text) => {
-                // Heuristic: look for agent:name patterns or similar
-                // This is a placeholder for actual agent extraction logic
-                // The actual format depends on the host's message convention
-                if text.starts_with("agent:") {
-                    return Some(text.trim_start_matches("agent:").trim().to_string());
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 /// Synchronize the compress permission into `state` based on the current
 /// message stream and host permissions.
 ///
 /// This function:
 /// 1. Finds the last non-ignored user message in `messages`.
-/// 2. Extracts the agent name from that message (if present).
+/// 2. Uses `active_agent` (provided by the host) as the agent name.
 /// 3. Resolves the effective compress permission via host permissions.
 /// 4. Stores the resolved permission in `state.compress_permission`.
+///
+/// The TS upstream reads `msg.info.agent` from the message object.
+/// Since the Rust `Message` type (dcp-types) does not carry an `agent` field,
+/// the host must pass the active agent name explicitly.
 #[allow(clippy::cognitive_complexity)]
 pub fn sync_compress_permission_state(
     state: &mut SessionState,
     config: &Config,
     host_permissions: &crate::host_permissions::HostPermissionSnapshot,
-    messages: &[Message],
+    _messages: &[Message],
+    active_agent: Option<&str>,
 ) {
-    // Find the last user message
-    let Some(last_user) = find_last_user_message(messages) else {
-        return;
-    };
-
-    // Extract agent name
-    let agent_name = extract_agent_name_from_message(last_user);
-
     // Resolve effective permission
     let base = compress_permission(state, config);
     let effective = crate::host_permissions::resolve_effective_permission(
         convert_permission(base),
         host_permissions,
-        agent_name.as_deref(),
+        active_agent,
     );
 
     // Convert back to CompressPermission and store
@@ -177,84 +141,19 @@ mod tests {
         assert_eq!(result, CompressPermission::Ask);
     }
 
-    // ── find_last_user_message ──────────────────────────────────────────────
-
-    #[test]
-    fn test_find_last_user_message_basic() {
-        let messages = vec![
-            Message::user_text("u1", 0, "first"),
-            Message::assistant_text("a1", 0, "response"),
-            Message::user_text("u2", 0, "second"),
-        ];
-        let result = find_last_user_message(&messages);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().id, "u2");
-    }
-
-    #[test]
-    fn test_find_last_user_message_skips_ignored() {
-        let mut msg = Message::user_text("u1", 0, "first");
-        msg.ignored = true;
-
-        let messages = vec![msg, Message::user_text("u2", 0, "second")];
-        let result = find_last_user_message(&messages);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().id, "u2");
-    }
-
-    #[test]
-    fn test_find_last_user_message_none_when_no_user() {
-        let messages = vec![
-            Message::assistant_text("a1", 0, "response"),
-            Message::assistant_text("a2", 0, "response2"),
-        ];
-        let result = find_last_user_message(&messages);
-        assert!(result.is_none());
-    }
-
-    // ── extract_agent_name_from_message ─────────────────────────────────────
-
-    #[test]
-    fn test_extract_agent_name_from_last_user_message() {
-        // Create a user message with an agent prefix
-        let msg = Message {
-            id: "u1".into(),
-            role: Role::User,
-            parts: vec![dcp_types::Part::Text("agent:my-agent hello".into())],
-            time: 0,
-            ignored: false,
-        };
-        let agent = extract_agent_name_from_message(&msg);
-        assert_eq!(agent, Some("my-agent hello".to_string()));
-    }
-
-    #[test]
-    fn test_extract_agent_name_not_found() {
-        let msg = Message {
-            id: "u1".into(),
-            role: Role::User,
-            parts: vec![dcp_types::Part::Text("hello world".into())],
-            time: 0,
-            ignored: false,
-        };
-        let agent = extract_agent_name_from_message(&msg);
-        assert!(agent.is_none());
-    }
-
     // ── sync_compress_permission_state ───────────────────────────────────────
 
     #[test]
-    fn test_sync_extracts_agent_from_last_user_message() {
+    fn test_sync_with_agent_name() {
         let mut state = make_state(CompressPermission::Ask);
         let config = make_config(dcp_config::Permission::Allow);
         let host = HostPermissionSnapshot::default();
 
-        let messages = vec![Message::user_text("u1", 0, "agent:test-agent hello")];
+        let messages = vec![Message::user_text("u1", 0, "hello")];
 
-        sync_compress_permission_state(&mut state, &config, &host, &messages);
+        sync_compress_permission_state(&mut state, &config, &host, &messages, Some("test-agent"));
 
         // Agent-specific resolution would happen here
-        // Currently our extract just looks for agent: prefix
         // State should have been updated
         assert_eq!(state.compress_permission, CompressPermission::Allow);
     }
@@ -267,7 +166,7 @@ mod tests {
 
         let messages = vec![Message::user_text("u1", 0, "hello")];
 
-        sync_compress_permission_state(&mut state, &config, &host, &messages);
+        sync_compress_permission_state(&mut state, &config, &host, &messages, None);
 
         // With default host permissions (no deny), should use config's Allow
         assert_eq!(state.compress_permission, CompressPermission::Allow);
@@ -287,24 +186,23 @@ mod tests {
 
         let messages = vec![Message::user_text("u1", 0, "hello")];
 
-        sync_compress_permission_state(&mut state, &config, &host, &messages);
+        sync_compress_permission_state(&mut state, &config, &host, &messages, None);
 
         // Host global deny should override config allow
         assert_eq!(state.compress_permission, CompressPermission::Deny);
     }
 
     #[test]
-    fn test_sync_no_user_message_does_nothing() {
+    fn test_sync_no_agent_uses_config_default() {
         let mut state = make_state(CompressPermission::Ask);
         let config = make_config(dcp_config::Permission::Allow);
         let host = HostPermissionSnapshot::default();
 
         let messages = vec![Message::assistant_text("a1", 0, "response")];
 
-        sync_compress_permission_state(&mut state, &config, &host, &messages);
+        sync_compress_permission_state(&mut state, &config, &host, &messages, None);
 
-        // No change since no user message
-        assert_eq!(state.compress_permission, CompressPermission::Ask);
+        assert_eq!(state.compress_permission, CompressPermission::Allow);
     }
 
     #[test]
@@ -315,7 +213,7 @@ mod tests {
 
         let messages = vec![Message::user_text("u1", 0, "hello")];
 
-        sync_compress_permission_state(&mut state, &config, &host, &messages);
+        sync_compress_permission_state(&mut state, &config, &host, &messages, None);
 
         // Base deny always wins regardless of host permissions
         assert_eq!(state.compress_permission, CompressPermission::Deny);

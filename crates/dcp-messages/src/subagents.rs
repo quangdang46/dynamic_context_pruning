@@ -11,15 +11,15 @@ use dcp_types::{Message, Part, Role, SessionState};
 // get_sub_agent_id
 // ============================================================================
 
-/// Extract the agent ID from a message's `info.agent` field.
+/// Extract the agent ID from a message's parts.
 ///
-/// Returns `Some(id)` if the message has a non-empty agent field,
-/// `None` otherwise.
+/// The TS upstream reads `part.state.metadata.sessionId` from ToolResult parts.
+/// Since the Rust `Part` type (dcp-types) does not carry a `state` field with
+/// metadata, this function accepts an optional agent name from the caller.
 ///
-/// Note: Currently the `Message` struct does not have an `info.agent` field,
-/// so this function always returns `None`.
-pub fn get_sub_agent_id(_message: &Message) -> Option<String> {
-    None
+/// Returns `Some(id)` if `agent_id` is provided and non-empty, `None` otherwise.
+pub fn get_sub_agent_id(agent_id: Option<&str>) -> Option<String> {
+    agent_id.filter(|s| !s.is_empty()).map(String::from)
 }
 
 // ============================================================================
@@ -56,34 +56,31 @@ pub fn merge_subagent_result(state: &mut SessionState, sub_agent_id: &str, resul
 
 /// Inject extended subagent results into assistant messages.
 ///
-/// Iterates through `messages`. For each assistant message that has an agent ID
-/// in the subagent result cache, injects the cached result text into the message's
-/// Text parts.
+/// Iterates through `messages`. For each assistant message, uses `agent_for`
+/// closure to obtain the agent ID, then injects the cached result text.
 ///
 /// Returns the count of messages that were modified.
-pub fn inject_extended_sub_agent_results(state: &SessionState, messages: &mut [Message]) -> usize {
+pub fn inject_extended_sub_agent_results(
+    state: &SessionState,
+    messages: &mut [Message],
+    agent_for: impl Fn(&Message) -> Option<String>,
+) -> usize {
     let mut count = 0;
 
     for msg in messages.iter_mut() {
-        // Only process assistant messages
         if msg.role != Role::Assistant {
             continue;
         }
 
-        // Get the agent ID for this message
-        let Some(agent_id) = get_sub_agent_id(msg) else {
+        let Some(agent_id) = agent_for(msg) else {
             continue;
         };
 
-        // Look up the result in the cache
         let Some(result) = state.subagent_result_cache.get(&agent_id) else {
             continue;
         };
 
-        // Build the result text to inject
         let inject_text = format!("\n\nSubagent result: {}\n{}", agent_id, result);
-
-        // Inject into Text parts
         inject_into_text_parts(msg, &inject_text);
         count += 1;
     }
@@ -155,17 +152,21 @@ mod tests {
     // ─────────────────────────────────────────────────────────────────
 
     #[test]
-    fn get_sub_agent_id_returns_none_when_feature_disabled() {
-        let m = msg("m1", Role::Assistant, vec![Part::text("hello")]);
-        // With message_info feature disabled, should return None
-        assert!(get_sub_agent_id(&m).is_none());
+    fn get_sub_agent_id_returns_some_when_provided() {
+        assert_eq!(
+            get_sub_agent_id(Some("agent-123")),
+            Some("agent-123".to_string())
+        );
     }
 
     #[test]
-    fn get_sub_agent_id_ignores_user_messages() {
-        // Even with the feature, user messages don't have agent IDs
-        let m = msg("m1", Role::User, vec![Part::text("hello")]);
-        assert!(get_sub_agent_id(&m).is_none());
+    fn get_sub_agent_id_returns_none_when_empty() {
+        assert!(get_sub_agent_id(Some("")).is_none());
+    }
+
+    #[test]
+    fn get_sub_agent_id_returns_none_when_not_provided() {
+        assert!(get_sub_agent_id(None).is_none());
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -278,7 +279,7 @@ mod tests {
         let state = make_state(HashMap::new());
         let mut messages: Vec<Message> = vec![];
 
-        let count = inject_extended_sub_agent_results(&state, &mut messages);
+        let count = inject_extended_sub_agent_results(&state, &mut messages, |_| None);
 
         assert_eq!(count, 0);
     }
@@ -291,10 +292,9 @@ mod tests {
             msg("m2", Role::Assistant, vec![Part::text("world")]),
         ];
 
-        let count = inject_extended_sub_agent_results(&state, &mut messages);
+        let count = inject_extended_sub_agent_results(&state, &mut messages, |_| None);
 
         assert_eq!(count, 0);
-        // Messages unchanged
         assert_eq!(messages[0].parts[0].as_text().unwrap(), "hello");
         assert_eq!(messages[1].parts[0].as_text().unwrap(), "world");
     }
@@ -306,9 +306,8 @@ mod tests {
         let state = make_state(cache);
         let mut messages = vec![msg("m1", Role::User, vec![Part::text("hello")])];
 
-        let count = inject_extended_sub_agent_results(&state, &mut messages);
+        let count = inject_extended_sub_agent_results(&state, &mut messages, |_| None);
 
-        // Should skip user messages even if there's an agent id in cache
         assert_eq!(count, 0);
     }
 
@@ -321,17 +320,11 @@ mod tests {
 
         let mut messages = vec![msg("m1", Role::Assistant, vec![Part::text("original")])];
 
-        let count = inject_extended_sub_agent_results(&state, &mut messages);
+        let count = inject_extended_sub_agent_results(&state, &mut messages, |_| None);
 
-        // Without the message.info.agent field, get_sub_agent_id returns None,
-        // so injection cannot occur. This test documents expected behavior
-        // when message_info feature is added to dcp-types.
         assert_eq!(count, 0);
     }
 
-    // Note: With the message_info feature disabled, get_sub_agent_id returns None,
-    // so inject_extended_sub_agent_results won't find agent IDs on messages.
-    // This test documents the expected behavior when message_info is enabled.
     #[test]
     fn inject_extended_sub_agent_results_injects_into_text_parts() {
         let mut cache = HashMap::new();
@@ -340,12 +333,21 @@ mod tests {
 
         let mut messages = vec![msg("m1", Role::Assistant, vec![Part::text("hello")])];
 
-        // Without message_info feature, this won't inject because get_sub_agent_id returns None
-        let count = inject_extended_sub_agent_results(&state, &mut messages);
+        let count = inject_extended_sub_agent_results(&state, &mut messages, |msg| {
+            if msg.id == "m1" {
+                Some("test-agent".to_string())
+            } else {
+                None
+            }
+        });
 
-        // With message_info feature disabled, count will be 0
-        // With feature enabled and proper message.info.agent set, it would inject
-        assert_eq!(count, 0); // No injection because no info.agent field
+        assert_eq!(count, 1);
+        assert!(
+            messages[0].parts[0]
+                .as_text()
+                .unwrap()
+                .contains("completed")
+        );
     }
 
     // Helper trait for tests
