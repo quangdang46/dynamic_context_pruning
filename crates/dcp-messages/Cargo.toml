@@ -1,6 +1,6 @@
 [package]
-name = "dcp-state"
-description = "SessionState transitions and idempotent rebuild for dynamic_context_pruning"
+name = "dcp-messages"
+description = "Message query, shape, sync, priority, injection, and utilities for dynamic_context_pruning"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,12 +12,14 @@ categories.workspace = true
 [dependencies]
 dcp-types = { workspace = true }
 dcp-traits = { workspace = true }
+dcp-config = { workspace = true }
+dcp-state = { workspace = true }
+dcp-tokens = { workspace = true }
+dcp-prompts = { workspace = true }
+dcp-protected = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-chrono = { workspace = true }
 thiserror = { workspace = true }
+anyhow = { workspace = true }
 regex = "1"
-once_cell = "1"
-
-[dev-dependencies]
-proptest = { workspace = true }
+sha2 = "0.10"

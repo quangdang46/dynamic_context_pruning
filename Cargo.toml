@@ -18,6 +18,9 @@ members = [
     "crates/dcp-cli",
     "crates/dcp-claude-hook",
     "crates/dcp-rig",
+    "crates/dcp-permissions",
+    "crates/dcp-messages",
+    "crates/dcp-notification",
     "crates/dynamic_context_pruning",
 ]
 default-members = [".", "crates/dynamic_context_pruning"]
@@ -49,6 +52,9 @@ insta = { version = "1" }
 criterion = { version = "0.5" }
 json5 = "0.4"
 schemars = { version = "0.8", features = ["derive"] }
+dcp-permissions = { path = "crates/dcp-permissions", version = "=0.1.0" }
+dcp-messages = { path = "crates/dcp-messages", version = "=0.1.0" }
+dcp-notification = { path = "crates/dcp-notification", version = "=0.1.0" }
 dirs = "5"
 tempfile = "3"
 globset = "0.4"

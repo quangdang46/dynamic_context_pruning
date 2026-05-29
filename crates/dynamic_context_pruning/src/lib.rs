@@ -120,7 +120,7 @@ pub use dcp_core::ContextPrunerAsync;
 // dcp-tokens — tokenizer backends (PLAN.md §2.5, §4.4)
 // ─────────────────────────────────────────────────────────────────────────
 
-pub use dcp_tokens::{default_tokenizer, Char4Tokenizer};
+pub use dcp_tokens::{Char4Tokenizer, default_tokenizer};
 
 // Feature-gated re-exports that match the umbrella's optional features.
 #[cfg(feature = "claude")]
@@ -134,7 +134,7 @@ pub use dcp_tokens::TiktokenTokenizer;
 // dcp-storage — persistence backends (PLAN.md §4.4, §7.3)
 // ─────────────────────────────────────────────────────────────────────────
 
-pub use dcp_storage::{default_storage_dir, FileStateStore, InMemoryStateStore};
+pub use dcp_storage::{FileStateStore, InMemoryStateStore, default_storage_dir};
 
 // ─────────────────────────────────────────────────────────────────────────
 // dcp-prompts — bundled prompts + override loader (PLAN.md §4.4)

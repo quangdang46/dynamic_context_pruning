@@ -38,9 +38,9 @@ pub(crate) mod pipeline;
 pub mod pruner;
 pub mod tokenizer;
 
-pub(crate) mod strip;
 #[cfg(feature = "async")]
 pub mod async_facade;
+pub(crate) mod strip;
 
 // ─────────────────────────────────────────────────────────────────────────
 // Public surface
@@ -69,16 +69,16 @@ pub use dcp_config::{
 };
 pub use dcp_nudges::NudgeKind;
 pub use dcp_prompts::{PromptError, PromptStore, Prompts};
+pub use dcp_storage::{FileStateStore, InMemoryStateStore, default_storage_dir};
 pub use dcp_telemetry::{Event, EventKind, Observer, Telemetry, TelemetrySnapshot};
+pub use dcp_traits::defaults::{NoopMemoryRetriever, NoopStorage};
 pub use dcp_traits::{
     CacheAccountant, CacheEvent, MemoryRetriever, PersistedState, PersistedStateV1,
     PersistenceError, PruneError, PruneOutcome, PruneStrategy, RetrievalError, RetrievedMemory,
     StatePersistence, Tokenizer,
 };
-pub use dcp_traits::defaults::{NoopMemoryRetriever, NoopStorage};
-pub use dcp_storage::{FileStateStore, InMemoryStateStore, default_storage_dir};
 pub use dcp_types::{
-    BlockId, CompressionBlock, CompressionMode, CompressPermission, ManualMode, Message,
+    BlockId, CompressPermission, CompressionBlock, CompressionMode, ManualMode, Message,
     MessageRef, MessageRefKind, MessageRefParseError, Part, Role, RunId, SessionState, Stats,
     ToolStatus,
 };

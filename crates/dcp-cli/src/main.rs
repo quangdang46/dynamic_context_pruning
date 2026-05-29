@@ -5,10 +5,12 @@ use std::io::{self, Read};
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use dcp_config::Config;
-use dcp_core::commands::CommandOutcome;
 use dcp_core::ContextPruner;
+use dcp_core::commands::CommandOutcome;
 use dcp_types::{BlockId, Message, Part, Role};
 use serde_json::Value as JsonValue;
+
+mod commands;
 
 /// Dynamic Context Pruning CLI
 #[derive(Parser)]
@@ -23,8 +25,30 @@ struct Cli {
 enum Commands {
     /// Show token usage breakdown and pruning stats
     Context,
-    /// Show cumulative DCP statistics
-    Stats,
+    /// Show session statistics (total tokens saved, message count, compression ratio)
+    Stats {
+        /// Session ID to display stats for
+        #[arg(long = "session-id", short = 's')]
+        session_id: String,
+    },
+    /// Show compression events over time
+    Timeline {
+        /// Session ID to display timeline for
+        #[arg(long = "session-id", short = 's')]
+        session_id: String,
+    },
+    /// Find sessions by ID pattern or date range
+    FindSession {
+        /// Glob pattern to match session IDs against
+        #[arg(long = "pattern", short = 'p')]
+        pattern: Option<String>,
+        /// Find sessions after this date (RFC3339 or YYYY-MM-DD)
+        #[arg(long = "after", short = 'a')]
+        after: Option<String>,
+        /// Find sessions before this date (RFC3339 or YYYY-MM-DD)
+        #[arg(long = "before", short = 'b')]
+        before: Option<String>,
+    },
     /// Flush pending prune tools
     Sweep {
         /// Number of pending prune tools to flush (default: all)
@@ -47,9 +71,7 @@ enum Commands {
         block_id: String,
     },
     /// Toggle manual mode
-    Manual {
-        enabled: String,
-    },
+    Manual { enabled: String },
 }
 
 /// Build a ContextPruner instance with default config.
@@ -63,16 +85,24 @@ fn build_pruner() -> anyhow::Result<ContextPruner> {
 
 /// Read messages from stdin or a file.
 fn read_messages(path: Option<&str>) -> anyhow::Result<Vec<Message>> {
-    let content = if path == Some("-") || path.is_none() {
-        let mut buf = String::new();
-        io::stdin().read_to_string(&mut buf).context("failed to read stdin")?;
-        buf
+    let content = if let Some(p) = path {
+        if p == "-" {
+            let mut buf = String::new();
+            io::stdin()
+                .read_to_string(&mut buf)
+                .context("failed to read stdin")?;
+            buf
+        } else {
+            std::fs::read_to_string(p).with_context(|| format!("failed to read file: {}", p))?
+        }
     } else {
-        std::fs::read_to_string(path.unwrap())
-            .with_context(|| format!("failed to read file: {}", path.unwrap()))?
+        let mut buf = String::new();
+        io::stdin()
+            .read_to_string(&mut buf)
+            .context("failed to read stdin")?;
+        buf
     };
-    let json: JsonValue = serde_json::from_str(&content)
-        .with_context(|| "failed to parse JSON")?;
+    let json: JsonValue = serde_json::from_str(&content).with_context(|| "failed to parse JSON")?;
     let arr = json.as_array().cloned().unwrap_or_default();
     let mut messages = Vec::new();
     for (i, v) in arr.iter().enumerate() {
@@ -121,7 +151,11 @@ fn parse_msg_json(obj: &serde_json::Map<String, JsonValue>) -> Option<Message> {
                                 .or_else(|| p_obj.get("state"))
                                 .cloned()
                                 .unwrap_or(JsonValue::Null);
-                            Some(Part::ToolCall { call_id, tool, input })
+                            Some(Part::ToolCall {
+                                call_id,
+                                tool,
+                                input,
+                            })
                         }
                         "tool_result" => {
                             let call_id = p_obj.get("call_id")?.as_str()?.to_string();
@@ -197,26 +231,63 @@ fn handle_context(pruner: &mut ContextPruner) -> anyhow::Result<()> {
 }
 
 /// Handle the stats command.
+#[allow(dead_code)]
 fn handle_stats(pruner: &ContextPruner) -> anyhow::Result<()> {
     let stats = pruner.stats();
     println!("=== DCP Statistics ===");
-    println!("  total_prune_tokens:          {}", stats.total_prune_tokens);
+    println!(
+        "  total_prune_tokens:          {}",
+        stats.total_prune_tokens
+    );
     println!("  dedup_pruned:                {}", stats.dedup_pruned);
-    println!("  purge_errors_pruned:         {}", stats.purge_errors_pruned);
-    println!("  stale_file_reads_pruned:     {}", stats.stale_file_reads_pruned);
+    println!(
+        "  purge_errors_pruned:         {}",
+        stats.purge_errors_pruned
+    );
+    println!(
+        "  stale_file_reads_pruned:     {}",
+        stats.stale_file_reads_pruned
+    );
     println!("  compress_runs:               {}", stats.compress_runs);
-    println!("  compress_blocks_committed:   {}", stats.compress_blocks_committed);
-    println!("  compress_oversized:          {}", stats.compress_oversized);
+    println!(
+        "  compress_blocks_committed:   {}",
+        stats.compress_blocks_committed
+    );
+    println!(
+        "  compress_oversized:          {}",
+        stats.compress_oversized
+    );
     println!("  compress_useful:             {}", stats.compress_useful);
-    println!("  compactions_observed:        {}", stats.compactions_observed);
+    println!(
+        "  compactions_observed:        {}",
+        stats.compactions_observed
+    );
     println!("  cache_bust_events:           {}", stats.cache_bust_events);
-    println!("  orphan_tool_results:        {}", stats.orphan_tool_results);
+    println!(
+        "  orphan_tool_results:        {}",
+        stats.orphan_tool_results
+    );
     println!("  dropped_invalid:             {}", stats.dropped_invalid);
-    println!("  invalid_status_transitions:  {}", stats.invalid_status_transitions);
-    println!("  normalize_depth_clamped:     {}", stats.normalize_depth_clamped);
-    println!("  path_null_byte_stripped:     {}", stats.path_null_byte_stripped);
-    println!("  storage_save_failed:         {}", stats.storage_save_failed);
-    println!("  persisted_corruption:        {}", stats.persisted_corruption);
+    println!(
+        "  invalid_status_transitions:  {}",
+        stats.invalid_status_transitions
+    );
+    println!(
+        "  normalize_depth_clamped:     {}",
+        stats.normalize_depth_clamped
+    );
+    println!(
+        "  path_null_byte_stripped:     {}",
+        stats.path_null_byte_stripped
+    );
+    println!(
+        "  storage_save_failed:         {}",
+        stats.storage_save_failed
+    );
+    println!(
+        "  persisted_corruption:        {}",
+        stats.persisted_corruption
+    );
     Ok(())
 }
 
@@ -247,7 +318,12 @@ fn handle_compress(pruner: &mut ContextPruner, file: Option<&str>) -> anyhow::Re
             println!("  Messages compressed:  {}", result.compressed_messages);
             println!("  Blocks committed:    {}", result.blocks.len());
             for (i, block) in result.blocks.iter().enumerate() {
-                println!("    Block {}: b{} ({} tokens)", i + 1, block.block_id, block.summary_tokens);
+                println!(
+                    "    Block {}: b{} ({} tokens)",
+                    i + 1,
+                    block.block_id,
+                    block.summary_tokens
+                );
             }
             Ok(())
         }
@@ -322,9 +398,18 @@ fn main() -> anyhow::Result<()> {
             let mut pruner = build_pruner()?;
             handle_context(&mut pruner)?;
         }
-        Commands::Stats => {
-            let pruner = build_pruner()?;
-            handle_stats(&pruner)?;
+        Commands::Stats { session_id } => {
+            commands::stats::run(&commands::stats::Args { session_id })?;
+        }
+        Commands::Timeline { session_id } => {
+            commands::timeline::run(&commands::timeline::Args { session_id })?;
+        }
+        Commands::FindSession { pattern, after, before } => {
+            commands::find_session::run(&commands::find_session::Args {
+                pattern,
+                after,
+                before,
+            })?;
         }
         Commands::Sweep { count } => {
             let mut pruner = build_pruner()?;

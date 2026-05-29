@@ -3,9 +3,7 @@
 
 use std::sync::Arc;
 
-use dcp_core::{
-    Config, ContextPruner, InMemoryStateStore, Message, Part, Role, StatePersistence,
-};
+use dcp_core::{Config, ContextPruner, InMemoryStateStore, Message, Part, Role, StatePersistence};
 use serde_json::json;
 
 #[test]

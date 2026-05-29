@@ -20,5 +20,6 @@ dcp-config = { workspace = true }
 dcp-storage = { workspace = true }
 dcp-traits = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }
 serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }

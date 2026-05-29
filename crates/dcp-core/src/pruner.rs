@@ -162,37 +162,31 @@ impl ContextPruner {
         let before_pruned = self.state.prune.tools.len();
         let apply_now = pipeline::should_apply_now(&self.state, &self.config);
         if apply_now {
-            let _outcomes = pipeline::run_strategies(
-                &mut self.state,
-                &self.config,
-                &mut self.telemetry,
-            );
+            let _outcomes =
+                pipeline::run_strategies(&mut self.state, &self.config, &mut self.telemetry);
             // Run any host-supplied custom strategies in declaration order.
             for strat in &self.custom_strategies {
                 let outcome = strat
                     .apply(&mut self.state, &valid, &self.config)
                     .map_err(Error::from)?;
                 if outcome.reason_skipped.is_none() {
-                    self.telemetry
-                        .record(dcp_telemetry::EventKind::Prune {
-                            strategy: outcome.strategy,
-                        });
+                    self.telemetry.record(dcp_telemetry::EventKind::Prune {
+                        strategy: outcome.strategy,
+                    });
                 }
             }
-            self.telemetry.record(dcp_telemetry::EventKind::ApplyTrigger {
-                mode: self.config.cache_stability_mode.as_str().to_string(),
-            });
+            self.telemetry
+                .record(dcp_telemetry::EventKind::ApplyTrigger {
+                    mode: self.config.cache_stability_mode.as_str().to_string(),
+                });
             self.state.last_apply_turn = Some(self.state.current_turn);
             self.state.force_apply_requested = false;
             self.state.pending_prune = None;
         } else {
             // Strategies still run (per SPEC §7.2) but their decisions
             // are recorded as pending without being applied to messages.
-            let _outcomes = pipeline::run_strategies(
-                &mut self.state,
-                &self.config,
-                &mut self.telemetry,
-            );
+            let _outcomes =
+                pipeline::run_strategies(&mut self.state, &self.config, &mut self.telemetry);
             pipeline::accumulate_pending(&mut self.state, before_pruned);
         }
 
@@ -240,17 +234,15 @@ impl ContextPruner {
                 // Surface the most recent failure via telemetry but do
                 // not fail the transform — the host has the message
                 // list and will re-derive on next start.
-                self.telemetry
-                    .record(dcp_telemetry::EventKind::Other {
-                        name: format!("persistence_save_failed:{e}"),
-                    });
+                self.telemetry.record(dcp_telemetry::EventKind::Other {
+                    name: format!("persistence_save_failed:{e}"),
+                });
             }
         }
 
-        self.telemetry
-            .record(dcp_telemetry::EventKind::Other {
-                name: "transform_messages".into(),
-            });
+        self.telemetry.record(dcp_telemetry::EventKind::Other {
+            name: "transform_messages".into(),
+        });
 
         Ok(pruned)
     }
@@ -420,10 +412,7 @@ impl ContextPruner {
     /// returns the result wrapped in a `<dcp-subagent-result>` block.
     /// Hosts that need richer behaviour (e.g. structured outputs) can
     /// pre-process `subagent_messages` before calling this method.
-    pub fn fold_subagent(
-        &mut self,
-        subagent_messages: Vec<Message>,
-    ) -> Result<Message, Error> {
+    pub fn fold_subagent(&mut self, subagent_messages: Vec<Message>) -> Result<Message, Error> {
         if !self.config.experimental.allow_subagents {
             return Err(Error::SubagentsDisabled);
         }
@@ -454,7 +443,12 @@ impl ContextPruner {
 
         let now_ms = chrono::Utc::now().timestamp_millis();
         let id = format!("subagent-{}", now_ms);
-        Ok(Message::new(id, Role::Assistant, vec![Part::Text(buf)], now_ms))
+        Ok(Message::new(
+            id,
+            Role::Assistant,
+            vec![Part::Text(buf)],
+            now_ms,
+        ))
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -603,10 +597,7 @@ impl ContextPrunerBuilder {
     }
 
     /// Install a [`CacheAccountant`] (off by default).
-    pub fn cache_accountant(
-        mut self,
-        accountant: Arc<Mutex<dyn CacheAccountant>>,
-    ) -> Self {
+    pub fn cache_accountant(mut self, accountant: Arc<Mutex<dyn CacheAccountant>>) -> Self {
         self.cache_accountant = Some(accountant);
         self
     }
@@ -724,8 +715,22 @@ mod tests {
             Message::assistant_text("a1", 0, "hello"),
         ];
         let _ = p.transform_messages(messages).unwrap();
-        assert_eq!(p.state().message_ids.by_raw_id.get("u1").map(|s| s.as_str()), Some("m0001"));
-        assert_eq!(p.state().message_ids.by_raw_id.get("a1").map(|s| s.as_str()), Some("m0002"));
+        assert_eq!(
+            p.state()
+                .message_ids
+                .by_raw_id
+                .get("u1")
+                .map(|s| s.as_str()),
+            Some("m0001")
+        );
+        assert_eq!(
+            p.state()
+                .message_ids
+                .by_raw_id
+                .get("a1")
+                .map(|s| s.as_str()),
+            Some("m0002")
+        );
     }
 
     #[test]
@@ -901,7 +906,10 @@ mod tests {
     fn handle_command_unknown() {
         let mut p = pruner();
         let outcome = p.handle_command("nope", &[], &[]);
-        assert!(matches!(outcome, crate::commands::CommandOutcome::Unknown { .. }));
+        assert!(matches!(
+            outcome,
+            crate::commands::CommandOutcome::Unknown { .. }
+        ));
     }
 
     #[test]

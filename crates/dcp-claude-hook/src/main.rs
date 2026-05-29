@@ -145,7 +145,8 @@ fn parse_message_from_json(obj: &serde_json::Map<String, JsonValue>) -> Option<M
         "system" => Role::System,
         _ => return None,
     };
-    let time = obj.get("timestamp")
+    let time = obj
+        .get("timestamp")
         .or_else(|| obj.get("time"))
         .and_then(|v| v.as_i64())
         .unwrap_or(0);
@@ -155,17 +156,20 @@ fn parse_message_from_json(obj: &serde_json::Map<String, JsonValue>) -> Option<M
         .or_else(|| obj.get("parts"))
         .and_then(|v| v.as_array())
         .map(|arr| {
-            arr.iter().filter_map(|p| {
-                let p_obj = p.as_object()?;
-                let content = p_obj.get("content")
-                    .or_else(|| p_obj.get("text"))
-                    .or_else(|| Some(p));
+            arr.iter()
+                .filter_map(|p| {
+                    let p_obj = p.as_object()?;
+                    let content = p_obj
+                        .get("content")
+                        .or_else(|| p_obj.get("text"))
+                        .or(Some(p));
 
-                if let Some(text) = content.and_then(|c| c.as_str()) {
-                    return Some(Part::Text(text.to_string()));
-                }
-                None
-            }).collect()
+                    if let Some(text) = content.and_then(|c| c.as_str()) {
+                        return Some(Part::Text(text.to_string()));
+                    }
+                    None
+                })
+                .collect()
         })
         .unwrap_or_default();
 
@@ -173,10 +177,20 @@ fn parse_message_from_json(obj: &serde_json::Map<String, JsonValue>) -> Option<M
     if parts.is_empty() {
         // Try to extract content from various formats
         if let Some(text) = obj.get("text").and_then(|t| t.as_str()) {
-            return Some(Message::new(id, role, vec![Part::Text(text.to_string())], time));
+            return Some(Message::new(
+                id,
+                role,
+                vec![Part::Text(text.to_string())],
+                time,
+            ));
         }
         if let Some(text) = obj.get("content").and_then(|c| c.as_str()) {
-            return Some(Message::new(id, role, vec![Part::Text(text.to_string())], time));
+            return Some(Message::new(
+                id,
+                role,
+                vec![Part::Text(text.to_string())],
+                time,
+            ));
         }
     }
 
@@ -192,48 +206,61 @@ fn message_to_json(msg: &Message) -> JsonValue {
         _ => "unknown",
     };
 
-    let parts: Vec<JsonValue> = msg.parts.iter().map(|p| match p {
-        Part::Text(t) => serde_json::json!({
-            "type": "text",
-            "content": t
-        }),
-        Part::Reasoning(r) => serde_json::json!({
-            "type": "reasoning",
-            "content": r
-        }),
-        Part::ToolCall { call_id, tool, input } => serde_json::json!({
-            "type": "tool_call",
-            "id": call_id,
-            "name": tool,
-            "input": input
-        }),
-        Part::ToolResult { call_id, status, output, error } => {
-            let mut obj = serde_json::json!({
-                "type": "tool_result",
-                "tool_call_id": call_id,
-                "status": match status {
-                    ToolStatus::Pending => "pending",
-                    ToolStatus::Running => "running",
-                    ToolStatus::Completed => "completed",
-                    ToolStatus::Error => "error",
-                    _ => "unknown",
+    let parts: Vec<JsonValue> = msg
+        .parts
+        .iter()
+        .map(|p| match p {
+            Part::Text(t) => serde_json::json!({
+                "type": "text",
+                "content": t
+            }),
+            Part::Reasoning(r) => serde_json::json!({
+                "type": "reasoning",
+                "content": r
+            }),
+            Part::ToolCall {
+                call_id,
+                tool,
+                input,
+            } => serde_json::json!({
+                "type": "tool_call",
+                "id": call_id,
+                "name": tool,
+                "input": input
+            }),
+            Part::ToolResult {
+                call_id,
+                status,
+                output,
+                error,
+            } => {
+                let mut obj = serde_json::json!({
+                    "type": "tool_result",
+                    "tool_call_id": call_id,
+                    "status": match status {
+                        ToolStatus::Pending => "pending",
+                        ToolStatus::Running => "running",
+                        ToolStatus::Completed => "completed",
+                        ToolStatus::Error => "error",
+                        _ => "unknown",
+                    }
+                });
+                if let Some(o) = output {
+                    obj["content"] = JsonValue::String(o.clone());
                 }
-            });
-            if let Some(o) = output {
-                obj["content"] = JsonValue::String(o.clone());
+                if let Some(e) = error {
+                    obj["error"] = JsonValue::String(e.clone());
+                }
+                obj
             }
-            if let Some(e) = error {
-                obj["error"] = JsonValue::String(e.clone());
-            }
-            obj
-        }
-        Part::Image { media_type, data } => serde_json::json!({
-            "type": "image",
-            "media_type": media_type,
-            "data": data
-        }),
-        _ => serde_json::json!({"type": "unknown"}),
-    }).collect();
+            Part::Image { media_type, data } => serde_json::json!({
+                "type": "image",
+                "media_type": media_type,
+                "data": data
+            }),
+            _ => serde_json::json!({"type": "unknown"}),
+        })
+        .collect();
 
     serde_json::json!({
         "id": msg.id,
@@ -252,7 +279,9 @@ fn transform_messages(
     pruner: &mut ContextPruner,
     messages: Vec<Message>,
 ) -> Result<Vec<Message>, String> {
-    pruner.transform_messages(messages).map_err(|e| e.to_string())
+    pruner
+        .transform_messages(messages)
+        .map_err(|e| e.to_string())
 }
 
 /// Run the transformation on Claude Code hook input.
@@ -298,10 +327,7 @@ fn run_transform(input: &HookInput) -> HookOutput {
     match transform_messages(&mut pruner, dcp_messages) {
         Ok(transformed) => {
             // Convert back to JSON
-            let result_json: Vec<JsonValue> = transformed
-                .iter()
-                .map(message_to_json)
-                .collect();
+            let result_json: Vec<JsonValue> = transformed.iter().map(message_to_json).collect();
 
             HookOutput::success(input, result_json)
         }
@@ -356,8 +382,10 @@ fn main() -> anyhow::Result<()> {
     let debug = opts.debug || std::env::var("DCP_DEBUG").is_ok();
     if debug {
         eprintln!("[dcp-claude-hook] Starting (debug={})", debug);
-        eprintln!("[dcp-claude-hook] on_compact={}, pre_tool_use={}, dry_run={}",
-            opts.on_compact, opts.pre_tool_use, opts.dry_run);
+        eprintln!(
+            "[dcp-claude-hook] on_compact={}, pre_tool_use={}, dry_run={}",
+            opts.on_compact, opts.pre_tool_use, opts.dry_run
+        );
     }
 
     // Read JSON from stdin
@@ -379,7 +407,10 @@ fn main() -> anyhow::Result<()> {
     }
 
     if debug {
-        eprintln!("[dcp-claude-hook] Read {} bytes from stdin", input_buffer.len());
+        eprintln!(
+            "[dcp-claude-hook] Read {} bytes from stdin",
+            input_buffer.len()
+        );
     }
 
     // Parse the input JSON
@@ -410,8 +441,11 @@ fn main() -> anyhow::Result<()> {
     };
 
     if debug {
-        eprintln!("[dcp-claude-hook] Hook type: {}, messages: {}",
-            input.hook_type, input.messages.len());
+        eprintln!(
+            "[dcp-claude-hook] Hook type: {}, messages: {}",
+            input.hook_type,
+            input.messages.len()
+        );
     }
 
     // Dry run mode - echo back
@@ -453,7 +487,10 @@ fn main() -> anyhow::Result<()> {
     });
 
     if debug {
-        eprintln!("[dcp-claude-hook] Writing {} bytes to stdout", output_json.len());
+        eprintln!(
+            "[dcp-claude-hook] Writing {} bytes to stdout",
+            output_json.len()
+        );
     }
 
     // Use stdout write directly for hook protocol
@@ -535,7 +572,9 @@ mod tests {
     fn test_cli_options() {
         let args = vec!["dcp-claude-hook", "--on-compact", "--debug"];
         // SAFETY: This is only used in test context and restored immediately
-        unsafe { std::env::set_var("DCP_ARGS", args.join(" ")); }
+        unsafe {
+            std::env::set_var("DCP_ARGS", args.join(" "));
+        }
         // Note: In actual use, args come from std::env::args()
     }
 }

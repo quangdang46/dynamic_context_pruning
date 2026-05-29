@@ -11,8 +11,8 @@ use dcp_compress::CompressConfig as CompressCfg;
 use dcp_compress::filter_compressed_ranges;
 use dcp_config::Config;
 use dcp_nudges::{
-    NudgeConfig, NudgeKind, build_priority_map, inject_extended_subagent_results, inject_message_ids,
-    inject_nudges,
+    NudgeConfig, NudgeKind, build_priority_map, inject_extended_subagent_results,
+    inject_message_ids, inject_nudges,
 };
 use dcp_prompts::Prompts;
 use dcp_prune::apply::{PruneKind, apply_prune_to_messages};
@@ -118,7 +118,11 @@ pub(crate) fn detect_compaction(state: &mut SessionState, messages: &[Message], 
         .message_ids
         .by_ref
         .iter()
-        .filter_map(|(r, raw)| r.strip_prefix('m').and_then(|n| n.parse::<u32>().ok()).map(|n| (n, raw.as_str())))
+        .filter_map(|(r, raw)| {
+            r.strip_prefix('m')
+                .and_then(|n| n.parse::<u32>().ok())
+                .map(|n| (n, raw.as_str()))
+        })
         .collect();
     sorted_refs.sort_by_key(|(n, _)| std::cmp::Reverse(*n));
     let recent: Vec<&str> = sorted_refs.iter().take(3).map(|(_, r)| *r).collect();
@@ -445,8 +449,7 @@ pub(crate) fn build_persisted(state: &SessionState) -> dcp_traits::PersistedStat
         prune: serde_json::json!({
             "tools": state.prune.tools,
         }),
-        tool_index: serde_json::to_value(&state.tool_parameters)
-            .unwrap_or(serde_json::Value::Null),
+        tool_index: serde_json::to_value(&state.tool_parameters).unwrap_or(serde_json::Value::Null),
         message_id_map: serde_json::json!({
             "by_raw_id": state.message_ids.by_raw_id,
             "by_ref": state.message_ids.by_ref,
@@ -470,8 +473,7 @@ fn now_iso8601() -> String {
 /// Add the configured compress system-prompt addendum (`<dcp-protected-tools>`
 /// listing + manual-mode + sub-agent notes) to `system`.
 pub(crate) fn render_system_addendum(prompts: &Prompts, config: &Config) -> String {
-    let extension =
-        dcp_prompts::build_protected_tools_extension(&config.compress.protected_tools);
+    let extension = dcp_prompts::build_protected_tools_extension(&config.compress.protected_tools);
     let manual_mode = config.manual_mode.enabled;
     let allow_subagents = config.experimental.allow_subagents;
     dcp_prompts::render_system_prompt(prompts, &extension, manual_mode, allow_subagents)

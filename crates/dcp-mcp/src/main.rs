@@ -19,10 +19,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use dcp_compress::{CompressArgs, RangeEntry, MessageEntry};
+use dcp_compress::{CompressArgs, MessageEntry, RangeEntry};
 use dcp_config::Config;
 use dcp_core::ContextPruner;
-use dcp_types::{BlockId};
+use dcp_types::BlockId;
 use rmcp::model::{
     Content, Implementation, InitializeResult, ListResourcesResult, ListToolsResult,
     ReadResourceResult, ResourceContents, ServerCapabilities, ServerInfo, Tool,
@@ -133,56 +133,84 @@ impl DcpMcpServer {
                             .get("parts")
                             .and_then(|v| v.as_array())
                             .map(|arr| {
-                                arr.iter().filter_map(|p| {
-                                    let p_obj = p.as_object()?;
-                                    let t = p_obj.get("type")?.as_str()?;
-                                    match t {
-                                        "text" => Some(dcp_types::Part::Text(
-                                            p_obj.get("text")?.as_str()?.to_string(),
-                                        )),
-                                        "reasoning" => Some(dcp_types::Part::Reasoning(
-                                            p_obj.get("text")
-                                                .or_else(|| p_obj.get("reasoning"))?
-                                                .as_str()?
-                                                .to_string(),
-                                        )),
-                                        "tool_call" | "tool" => {
-                                            let call_id = p_obj.get("call_id")?.as_str()?.to_string();
-                                            let tool = p_obj.get("tool")?.as_str()?.to_string();
-                                            let input = p_obj
-                                                .get("input")
-                                                .or_else(|| p_obj.get("state"))
-                                                .cloned()
-                                                .unwrap_or(JsonValue::Null);
-                                            Some(dcp_types::Part::ToolCall { call_id, tool, input })
-                                        }
-                                        "tool_result" => {
-                                            let call_id = p_obj.get("call_id")?.as_str()?.to_string();
-                                            let status = p_obj
-                                                .get("status")
-                                                .or_else(|| p_obj.get("state").and_then(|s| s.get("status")))
-                                                .and_then(|v| v.as_str())
-                                                .map(|s| match s {
-                                                    "completed" => dcp_types::ToolStatus::Completed,
-                                                    "error" => dcp_types::ToolStatus::Error,
-                                                    _ => dcp_types::ToolStatus::Pending,
+                                arr.iter()
+                                    .filter_map(|p| {
+                                        let p_obj = p.as_object()?;
+                                        let t = p_obj.get("type")?.as_str()?;
+                                        match t {
+                                            "text" => Some(dcp_types::Part::Text(
+                                                p_obj.get("text")?.as_str()?.to_string(),
+                                            )),
+                                            "reasoning" => Some(dcp_types::Part::Reasoning(
+                                                p_obj
+                                                    .get("text")
+                                                    .or_else(|| p_obj.get("reasoning"))?
+                                                    .as_str()?
+                                                    .to_string(),
+                                            )),
+                                            "tool_call" | "tool" => {
+                                                let call_id =
+                                                    p_obj.get("call_id")?.as_str()?.to_string();
+                                                let tool = p_obj.get("tool")?.as_str()?.to_string();
+                                                let input = p_obj
+                                                    .get("input")
+                                                    .or_else(|| p_obj.get("state"))
+                                                    .cloned()
+                                                    .unwrap_or(JsonValue::Null);
+                                                Some(dcp_types::Part::ToolCall {
+                                                    call_id,
+                                                    tool,
+                                                    input,
                                                 })
-                                                .unwrap_or(dcp_types::ToolStatus::Pending);
-                                            let output = p_obj
-                                                .get("output")
-                                                .or_else(|| p_obj.get("state").and_then(|s| s.get("output")))
-                                                .and_then(|v| v.as_str())
-                                                .map(String::from);
-                                            let error = p_obj
-                                                .get("error")
-                                                .or_else(|| p_obj.get("state").and_then(|s| s.get("error")))
-                                                .and_then(|v| v.as_str())
-                                                .map(String::from);
-                                            Some(dcp_types::Part::ToolResult { call_id, status, output, error })
+                                            }
+                                            "tool_result" => {
+                                                let call_id =
+                                                    p_obj.get("call_id")?.as_str()?.to_string();
+                                                let status = p_obj
+                                                    .get("status")
+                                                    .or_else(|| {
+                                                        p_obj
+                                                            .get("state")
+                                                            .and_then(|s| s.get("status"))
+                                                    })
+                                                    .and_then(|v| v.as_str())
+                                                    .map(|s| match s {
+                                                        "completed" => {
+                                                            dcp_types::ToolStatus::Completed
+                                                        }
+                                                        "error" => dcp_types::ToolStatus::Error,
+                                                        _ => dcp_types::ToolStatus::Pending,
+                                                    })
+                                                    .unwrap_or(dcp_types::ToolStatus::Pending);
+                                                let output = p_obj
+                                                    .get("output")
+                                                    .or_else(|| {
+                                                        p_obj
+                                                            .get("state")
+                                                            .and_then(|s| s.get("output"))
+                                                    })
+                                                    .and_then(|v| v.as_str())
+                                                    .map(String::from);
+                                                let error = p_obj
+                                                    .get("error")
+                                                    .or_else(|| {
+                                                        p_obj
+                                                            .get("state")
+                                                            .and_then(|s| s.get("error"))
+                                                    })
+                                                    .and_then(|v| v.as_str())
+                                                    .map(String::from);
+                                                Some(dcp_types::Part::ToolResult {
+                                                    call_id,
+                                                    status,
+                                                    output,
+                                                    error,
+                                                })
+                                            }
+                                            _ => None,
                                         }
-                                        _ => None,
-                                    }
-                                }).collect::<Vec<_>>()
+                                    })
+                                    .collect::<Vec<_>>()
                             })
                             .unwrap_or_default();
                         Some(dcp_types::Message::new(id, role, parts, time))
@@ -213,33 +241,47 @@ impl DcpMcpServer {
                 .get("content")
                 .and_then(|v| v.as_array())
                 .map(|arr| {
-                    arr.iter().filter_map(|r| {
-                        let obj = r.as_object()?;
-                        Some(MessageEntry {
-                            message_id: obj.get("messageId")?.as_str()?.to_string(),
-                            topic: obj.get("topic")?.as_str()?.to_string(),
-                            summary: obj.get("summary")?.as_str()?.to_string(),
+                    arr.iter()
+                        .filter_map(|r| {
+                            let obj = r.as_object()?;
+                            Some(MessageEntry {
+                                message_id: obj.get("messageId")?.as_str()?.to_string(),
+                                topic: obj.get("topic")?.as_str()?.to_string(),
+                                summary: obj.get("summary")?.as_str()?.to_string(),
+                            })
                         })
-                    }).collect::<Vec<_>>()
+                        .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            CompressArgs::Message { topic, content: entries }
+            CompressArgs::Message {
+                topic,
+                content: entries,
+            }
         } else {
             let ranges: Vec<RangeEntry> = args_json
                 .get("content")
                 .and_then(|v| v.as_array())
                 .map(|arr| {
-                    arr.iter().filter_map(|r| {
-                        let obj = r.as_object()?;
-                        Some(RangeEntry {
-                            start_id: obj.get("startId")?.as_str()?.to_string(),
-                            end_id: obj.get("endId")?.as_str()?.to_string(),
-                            summary: obj.get("summary").and_then(|v| v.as_str()).map(String::from).unwrap_or_default(),
+                    arr.iter()
+                        .filter_map(|r| {
+                            let obj = r.as_object()?;
+                            Some(RangeEntry {
+                                start_id: obj.get("startId")?.as_str()?.to_string(),
+                                end_id: obj.get("endId")?.as_str()?.to_string(),
+                                summary: obj
+                                    .get("summary")
+                                    .and_then(|v| v.as_str())
+                                    .map(String::from)
+                                    .unwrap_or_default(),
+                            })
                         })
-                    }).collect::<Vec<_>>()
+                        .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            CompressArgs::Range { topic, content: ranges }
+            CompressArgs::Range {
+                topic,
+                content: ranges,
+            }
         };
 
         let mut inner = match self.inner.lock() {
@@ -266,8 +308,12 @@ impl DcpMcpServer {
     fn run_decompress(&self, args_json: &JsonValue) -> rmcp::model::CallToolResult {
         let block_id = match args_json.get("blockId") {
             Some(v) => {
-                let s = v.as_str().unwrap_or("");
-                let s = if s.starts_with('b') { &s[1..] } else { s };
+                let s = v
+                    .as_str()
+                    .unwrap_or("")
+                    .strip_prefix("b")
+                    .map(|s| &s[1..])
+                    .unwrap_or_else(|| v.as_str().unwrap_or(""));
                 match s.parse::<u32>() {
                     Ok(id) => BlockId::new(id),
                     Err(_) => {
@@ -308,8 +354,12 @@ impl DcpMcpServer {
     fn run_recompress(&self, args_json: &JsonValue) -> rmcp::model::CallToolResult {
         let block_id = match args_json.get("blockId") {
             Some(v) => {
-                let s = v.as_str().unwrap_or("");
-                let s = if s.starts_with('b') { &s[1..] } else { s };
+                let s = v
+                    .as_str()
+                    .unwrap_or("")
+                    .strip_prefix("b")
+                    .map(|s| &s[1..])
+                    .unwrap_or_else(|| v.as_str().unwrap_or(""));
                 match s.parse::<u32>() {
                     Ok(id) => BlockId::new(id),
                     Err(_) => {
@@ -466,13 +516,15 @@ impl DcpMcpServer {
 }
 
 impl Service<RoleServer> for DcpMcpServer {
+    #[allow(clippy::manual_async_fn)]
     fn handle_request(
         &self,
         request: rmcp::model::ClientRequest,
         _context: RequestContext<RoleServer>,
     ) -> impl std::future::Future<
         Output = std::result::Result<rmcp::model::ServerResult, rmcp::ErrorData>,
-    > + Send + '_ {
+    > + Send
+    + '_ {
         async move {
             match request {
                 rmcp::model::ClientRequest::InitializeRequest(_req) => {
@@ -484,7 +536,9 @@ impl Service<RoleServer> for DcpMcpServer {
                         .with_server_info(
                             Implementation::new("dcp-mcp", env!("CARGO_PKG_VERSION"))
                                 .with_title("Dynamic Context Pruning MCP Server")
-                                .with_description("MCP server exposing dynamic context pruning transform"),
+                                .with_description(
+                                    "MCP server exposing dynamic context pruning transform",
+                                ),
                         )
                         .with_instructions(
                             "Use compress to compress ranges or messages. \
@@ -538,7 +592,11 @@ impl Service<RoleServer> for DcpMcpServer {
                     ))
                 }
                 rmcp::model::ClientRequest::CallToolRequest(req) => {
-                    let args_json: JsonValue = req.params.arguments.unwrap_or_else(|| rmcp::model::JsonObject::new().into()).into();
+                    let args_json: JsonValue = req
+                        .params
+                        .arguments
+                        .unwrap_or_else(rmcp::model::JsonObject::new)
+                        .into();
                     let result = match req.params.name.as_ref() {
                         "compress" => self.run_compress(&args_json),
                         "decompress" => self.run_decompress(&args_json),
@@ -546,7 +604,10 @@ impl Service<RoleServer> for DcpMcpServer {
                         "dcp_context" => self.run_dcp_context(),
                         "dcp_stats" => self.run_dcp_stats(),
                         "dcp_sweep" => self.run_dcp_sweep(&args_json),
-                        _ => rmcp::model::CallToolResult::error(vec![Content::text(format!("unknown tool: {}", req.params.name))]),
+                        _ => rmcp::model::CallToolResult::error(vec![Content::text(format!(
+                            "unknown tool: {}",
+                            req.params.name
+                        ))]),
                     };
                     Ok(rmcp::model::ServerResult::CallToolResult(result))
                 }
@@ -603,7 +664,7 @@ impl Service<RoleServer> for DcpMcpServer {
                     let state = inner.pruner.state();
                     let uri_path = req.params.uri.as_str();
                     let text = if uri_path.contains("/state") {
-                        serde_json::to_string_pretty(&*state).unwrap_or_default()
+                        serde_json::to_string_pretty(state).unwrap_or_default()
                     } else if uri_path.contains("/blocks") {
                         let blocks: Vec<&dcp_types::CompressionBlock> = state
                             .prune
@@ -625,16 +686,20 @@ impl Service<RoleServer> for DcpMcpServer {
                         ReadResourceResult::new(contents),
                     ))
                 }
-                _ => Err(rmcp::ErrorData::method_not_found::<rmcp::model::CallToolRequestMethod>()),
+                _ => Err(rmcp::ErrorData::method_not_found::<
+                    rmcp::model::CallToolRequestMethod,
+                >()),
             }
         }
     }
 
+    #[allow(clippy::manual_async_fn)]
     fn handle_notification(
         &self,
         _notification: <RoleServer as rmcp::service::ServiceRole>::PeerNot,
         _context: NotificationContext<RoleServer>,
-    ) -> impl std::future::Future<Output = std::result::Result<(), rmcp::ErrorData>> + Send + '_ {
+    ) -> impl std::future::Future<Output = std::result::Result<(), rmcp::ErrorData>> + Send + '_
+    {
         async move { Ok(()) }
     }
 
@@ -643,12 +708,11 @@ impl Service<RoleServer> for DcpMcpServer {
             .enable_tools()
             .enable_resources()
             .build();
-        InitializeResult::new(caps)
-            .with_server_info(
-                Implementation::new("dcp-mcp", env!("CARGO_PKG_VERSION"))
-                    .with_title("Dynamic Context Pruning MCP Server")
-                    .with_description("MCP server exposing dynamic context pruning transform"),
-            )
+        InitializeResult::new(caps).with_server_info(
+            Implementation::new("dcp-mcp", env!("CARGO_PKG_VERSION"))
+                .with_title("Dynamic Context Pruning MCP Server")
+                .with_description("MCP server exposing dynamic context pruning transform"),
+        )
     }
 }
 

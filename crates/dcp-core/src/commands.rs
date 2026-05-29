@@ -141,11 +141,7 @@ fn render_context(pruner: &ContextPruner) -> CommandOutcome {
         total_blocks: s.prune.messages.blocks_by_id.len(),
         pending_tokens,
         frontier: s.prune.messages.frontier_message_ref.clone(),
-        cache_stability_mode: pruner
-            .config()
-            .cache_stability_mode
-            .as_str()
-            .to_string(),
+        cache_stability_mode: pruner.config().cache_stability_mode.as_str().to_string(),
     }
 }
 

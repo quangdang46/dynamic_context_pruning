@@ -62,10 +62,7 @@ impl ContextPrunerAsync {
     }
 
     /// Async [`ContextPruner::transform_messages`].
-    pub async fn transform_messages(
-        &self,
-        messages: Vec<Message>,
-    ) -> Result<Vec<Message>, Error> {
+    pub async fn transform_messages(&self, messages: Vec<Message>) -> Result<Vec<Message>, Error> {
         let inner = self.inner.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = inner.blocking_lock();
@@ -135,10 +132,7 @@ impl ContextPrunerAsync {
     }
 
     /// Async [`ContextPruner::fold_subagent`].
-    pub async fn fold_subagent(
-        &self,
-        subagent_messages: Vec<Message>,
-    ) -> Result<Message, Error> {
+    pub async fn fold_subagent(&self, subagent_messages: Vec<Message>) -> Result<Message, Error> {
         let inner = self.inner.clone();
         tokio::task::spawn_blocking(move || {
             let mut guard = inner.blocking_lock();

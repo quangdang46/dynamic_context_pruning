@@ -34,7 +34,11 @@ pub fn strip_messages(messages: &mut [Message]) {
                 crate::Part::Text(t) => {
                     *t = strip_from_string(t);
                 }
-                crate::Part::ToolResult { output: Some(s), error, .. } => {
+                crate::Part::ToolResult {
+                    output: Some(s),
+                    error,
+                    ..
+                } => {
                     *s = strip_from_string(s);
                     if let Some(e) = error {
                         *e = strip_from_string(e);
@@ -120,7 +124,11 @@ mod tests {
         )];
         strip_messages(&mut messages);
         match &messages[0].parts[0] {
-            Part::ToolResult { output: Some(o), error: Some(e), .. } => {
+            Part::ToolResult {
+                output: Some(o),
+                error: Some(e),
+                ..
+            } => {
                 assert!(!o.contains("<dcp"));
                 assert!(!e.contains("<dcp"));
                 assert_eq!(o, "Output:  here");

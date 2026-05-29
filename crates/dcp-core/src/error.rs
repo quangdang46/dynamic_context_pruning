@@ -99,9 +99,9 @@ impl From<CompressError> for Error {
             CompressError::UnknownRef(m) => Error::InvalidCompressArgs(format!("unknown ref: {m}")),
             CompressError::RangeOverlap(m) => Error::RangeOverlap(m),
             CompressError::PlaceholderMismatch(m) => Error::PlaceholderMismatch(m),
-            CompressError::MessageAlreadyCompressed(m) => Error::InvalidCompressArgs(format!(
-                "message {m} is already inside an active block"
-            )),
+            CompressError::MessageAlreadyCompressed(m) => {
+                Error::InvalidCompressArgs(format!("message {m} is already inside an active block"))
+            }
             // `CompressError` is `#[non_exhaustive]`; route any future
             // variant through `InvalidCompressArgs` so callers always
             // see a structured error.
