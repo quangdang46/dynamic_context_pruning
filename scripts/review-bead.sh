@@ -127,7 +127,7 @@ declare -A BEAD_FILES=(
     ["uci"]="crates/dcp-state/src/lib.rs crates/dcp-state/src/session.rs crates/dcp-state/src/message_refs.rs"
     ["ukh"]="crates/dcp-state/src/lib.rs crates/dcp-state/src/message_refs.rs"
     ["s5z"]="crates/dcp-prompts/src/store.rs crates/dcp-prompts/src/lib.rs"
-    ["842"]="crates/dcp-nudges/src/lib.rs crates/dcp-nudges/src/lib.rs crates/dcp-core/src/pipeline.rs"
+    ["842"]="crates/dcp-nudges/src/lib.rs crates/dcp-core/src/pipeline.rs"
     ["9t6"]="crates/dcp-protected/src/lib.rs"
     ["q01"]="crates/dcp-cli/src/commands/"
 
