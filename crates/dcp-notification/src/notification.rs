@@ -160,7 +160,7 @@ pub fn build_compress_visual_output(
     // Per-block details
     for entry in blocks {
         lines.push(format!(
-            "▣ Compression #{} -{} removed, +{} summary",
+            "✂ Compression #{} -{} removed, +{} summary",
             entry.run_id,
             format_token_count(entry.compressed_tokens, true),
             format_token_count(entry.summary_tokens, true),

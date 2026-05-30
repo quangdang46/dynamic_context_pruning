@@ -83,6 +83,7 @@ pub enum NudgeKind {
 }
 
 impl NudgeKind {
+    /// Return a string identifier for this nudge kind.
     pub fn as_str(&self) -> &'static str {
         match self {
             NudgeKind::ContextLimit { .. } => "context_limit",

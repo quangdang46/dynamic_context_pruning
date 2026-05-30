@@ -136,6 +136,14 @@ impl ContextPruner {
         Ok(result.messages)
     }
 
+    /// Transform messages and return a diff of what changed.
+    ///
+    /// This is the same as [`transform_messages()`][Self::transform_messages]
+    /// but also returns a [`TransformResult`] with details about what was
+    /// pruned (removed message IDs, tool IDs, tokens saved, new block IDs).
+    ///
+    /// jcode uses this to update its CompactionManager budget and show
+    /// notifications about what was pruned.
     pub fn transform_messages_with_diff(
         &mut self,
         messages: Vec<Message>,
@@ -573,6 +581,8 @@ impl ContextPruner {
         total
     }
 
+    /// Return the kind of the most recently injected nudge, if any.
+    ///
     /// Return the kind of the most recently injected nudge, if any.
     ///
     /// jcode can check this after `transform_messages()` to decide
