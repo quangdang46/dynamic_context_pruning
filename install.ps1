@@ -341,9 +341,13 @@ function Configure-AllMcpProviders {
 
     # ── JSON-based providers ───────────────────────────────────────────────
 
-    # Claude Code
+    # Claude Code — write to both config locations
     Set-McpServer -ProviderName "Claude Code" `
                   -SettingsFile (Join-Path $env:USERPROFILE ".claude\settings.json") `
+                  -JsonKey "mcpServers" `
+                  -BinaryPath $mcpBinary
+    Set-McpServer -ProviderName "Claude Code (~/.claude.json)" `
+                  -SettingsFile (Join-Path $env:USERPROFILE ".claude.json") `
                   -JsonKey "mcpServers" `
                   -BinaryPath $mcpBinary
 
@@ -710,8 +714,10 @@ function Do-Uninstall {
         }
     }
 
-    # Remove MCP config from all providers
+    # Remove MCP config from all providers (both Claude Code locations)
     Remove-JsonKeyFromFile -FilePath (Join-Path $env:USERPROFILE ".claude\settings.json") `
+                           -ParentKey "mcpServers" -ChildKey "dcp"
+    Remove-JsonKeyFromFile -FilePath (Join-Path $env:USERPROFILE ".claude.json") `
                            -ParentKey "mcpServers" -ChildKey "dcp"
     Remove-JsonKeyFromFile -FilePath (Join-Path $env:USERPROFILE ".cline\mcp_settings.json") `
                            -ParentKey "mcpServers" -ChildKey "dcp"

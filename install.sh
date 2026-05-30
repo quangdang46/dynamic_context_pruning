@@ -142,8 +142,9 @@ do_uninstall() {
         fi
     done
 
-    # Remove from Claude Code settings
+    # Remove from Claude Code settings (both locations)
     _remove_mcp_from_file "$HOME/.claude/settings.json" "dcp"
+    _remove_mcp_from_file "$HOME/.claude.json" "dcp"
     _remove_hooks_from_claude_settings "$HOME/.claude/settings.json"
 
     # Remove from other JSON providers
@@ -205,6 +206,7 @@ do_check() {
     echo -e "  ${BOLD}MCP Providers:${RESET}" >&2
 
     _check_mcp_json "Claude Code" "$HOME/.claude/settings.json" "mcpServers.dcp"
+    _check_mcp_json "Claude Code (~/.claude.json)" "$HOME/.claude.json" "mcpServers.dcp"
     _check_mcp_json "Cursor" "$HOME/.config/Cursor/User/settings.json" "mcp.servers.dcp"
     _check_mcp_json "Cline" "$HOME/.cline/mcp_settings.json" "mcpServers.dcp"
     _check_mcp_json "Windsurf" "$HOME/.codeium/windsurf/mcp_config.json" "mcpServers.dcp"
@@ -585,8 +587,9 @@ configure_all_mcp_providers() {
 
     # ── JSON-based providers ───────────────────────────────────────────────
 
-    # Claude Code
+    # Claude Code — write to both config locations
     configure_mcp_provider "Claude Code" "$HOME/.claude/settings.json" "mcpServers" "$binary"
+    configure_mcp_provider "Claude Code (~/.claude.json)" "$HOME/.claude.json" "mcpServers" "$binary"
 
     # Cursor
     local cursor_settings=""
@@ -999,7 +1002,7 @@ main() {
 
     if [ "$NO_MCP" -eq 0 ]; then
         echo -e "  ${BOLD}MCP Providers:${RESET}" >&2
-        echo -e "    Claude Code    ${GREEN}✓${RESET}  (~/.claude/settings.json)" >&2
+        echo -e "    Claude Code    ${GREEN}✓${RESET}  (~/.claude/settings.json + ~/.claude.json)" >&2
         [ -d "$HOME/.config/Cursor" ] || [ -d "$HOME/Library/Application Support/Cursor" ] \
             && echo -e "    Cursor         ${GREEN}✓${RESET}" >&2 \
             || echo -e "    Cursor         ${DIM}—${RESET}" >&2
