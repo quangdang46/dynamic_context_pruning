@@ -1,10 +1,11 @@
 //! Notification builders — port of lib/ui/notification.ts.
 //!
 //! Provides: send_unified_notification, send_compress_notification,
-//! CompressionNotificationEntry, PruneReason.
+//! build_compress_visual_output, CompressionNotificationEntry, PruneReason.
 
 use dcp_config::{Config, NotificationLevel};
 use dcp_state::SessionState;
+use dcp_compress::NotificationEntry;
 
 /// Error type for notification operations.
 #[derive(Debug, thiserror::Error)]
@@ -100,6 +101,73 @@ pub fn send_compress_notification(
 
     println!("{msg}");
     Ok(true)
+}
+
+/// Build a human-readable visual output for compress tool results.
+/// This replaces raw JSON in MCP tool responses.
+pub fn build_compress_visual_output(
+    state: &SessionState,
+    blocks: &[NotificationEntry],
+    session_message_ids: &[String],
+) -> String {
+    use crate::format::{format_progress_bar, format_stats_header, format_token_count};
+    use std::collections::HashMap;
+
+    if blocks.is_empty() {
+        return "No blocks compressed.".to_string();
+    }
+
+    let mut lines = Vec::new();
+
+    // Header with total stats
+    lines.push(format_stats_header(state.stats.total_prune_tokens, 0));
+
+    // Progress bar
+    let newly_compressed: Vec<String> = blocks
+        .iter()
+        .flat_map(|b| {
+            state
+                .prune
+                .messages
+                .blocks_by_id
+                .get(&dcp_types::BlockId::new(b.block_id))
+                .map(|blk| blk.direct_message_ids.clone())
+                .unwrap_or_default()
+        })
+        .collect();
+
+    let bar = format_progress_bar(
+        session_message_ids,
+        &HashMap::new(),
+        &newly_compressed,
+        50,
+    );
+    lines.push(String::new());
+    lines.push(bar);
+
+    // Per-block details
+    for entry in blocks {
+        let run_id = entry.run_id;
+        let summary_tokens = entry.summary_tokens;
+        lines.push(format!(
+            "▣ Compression #{} — {} summary",
+            run_id,
+            format_token_count(summary_tokens, true)
+        ));
+        let topic_str = if let Some(b) = state
+            .prune
+            .messages
+            .blocks_by_id
+            .get(&dcp_types::BlockId::new(entry.block_id))
+        {
+            b.anchor_message_id.clone()
+        } else {
+            "(unknown)".to_string()
+        };
+        lines.push(format!("  → Topic: {}", topic_str));
+    }
+
+    lines.join("\n")
 }
 
 #[cfg(test)]

@@ -169,7 +169,7 @@ mod tests {
         let mut state = build(&messages);
         state.current_turn = 100;
         let config = StaticPruneConfig {
-            purge_errors_protected_tools: ToolProtection::new(["task"]),
+            purge_errors_protected_tools: ToolProtection::new_exact(["task"]),
             ..StaticPruneConfig::defaults_enabled()
         };
         let out = run(&mut state, &config);

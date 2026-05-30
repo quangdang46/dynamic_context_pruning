@@ -185,7 +185,7 @@ mod tests {
         ];
         let mut state = build_state(&messages);
         let config = StaticPruneConfig {
-            dedup_protected_tools: ToolProtection::new(["task"]),
+            dedup_protected_tools: ToolProtection::new_exact(["task"]),
             ..StaticPruneConfig::defaults_enabled()
         };
         let out = run(&mut state, &config);

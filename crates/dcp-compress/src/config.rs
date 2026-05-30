@@ -55,7 +55,7 @@ impl StaticCompressConfig {
     pub fn defaults() -> Self {
         Self {
             max_summary_chars: DEFAULT_MAX_SUMMARY_CHARS,
-            protected_tools: ToolProtection::new(["task", "skill"]),
+            protected_tools: ToolProtection::new_exact(["task", "skill"]),
             protect_user_messages: false,
             show_compression: true,
         }

@@ -34,6 +34,7 @@ pub mod filter;
 pub mod handler;
 pub mod placeholder;
 pub mod resolve;
+pub mod timing;
 pub mod types;
 pub mod validate;
 pub mod wrap;
@@ -50,6 +51,7 @@ pub use placeholder::{
 pub use resolve::{ResolvedRange, resolve_range};
 pub use types::{CompressArgs, CompressResult, MessageEntry, NotificationEntry, RangeEntry};
 pub use validate::{validate_non_overlapping, validate_topic_and_content};
+pub use timing::{resolve_compression_duration, build_compression_timing_key};
 pub use wrap::{
     PROTECTED_USER_TRUNCATE_BYTES, append_protected_tool_outputs, append_protected_user_messages,
     compute_effective, compute_included, estimate_compressed_tokens, estimate_summary_tokens,

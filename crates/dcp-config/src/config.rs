@@ -139,24 +139,49 @@ impl Config {
     /// mutation to a `protected*` field before passing the config to
     /// the rest of the library.
     pub fn rebuild_cache(&mut self) -> Result<(), ConfigError> {
-        self.cached.dedup = ToolProtection::new(
-            self.strategies
+        self.cached.dedup = {
+            let (exact, glob): (Vec<_>, Vec<_>) = self
+                .strategies
                 .deduplication
                 .protected_tools
                 .iter()
-                .cloned(),
-        );
-        self.cached.purge_errors =
-            ToolProtection::new(self.strategies.purge_errors.protected_tools.iter().cloned());
-        self.cached.stale_file_reads = ToolProtection::new(
-            self.strategies
+                .partition(|t| !t.contains('*') && !t.contains('?'));
+            ToolProtection::new(exact.into_iter().cloned(), glob.into_iter().cloned())
+        };
+        self.cached.purge_errors = {
+            let (exact, glob): (Vec<_>, Vec<_>) = self
+                .strategies
+                .purge_errors
+                .protected_tools
+                .iter()
+                .partition(|t| !t.contains('*') && !t.contains('?'));
+            ToolProtection::new(exact.into_iter().cloned(), glob.into_iter().cloned())
+        };
+        self.cached.stale_file_reads = {
+            let (exact, glob): (Vec<_>, Vec<_>) = self
+                .strategies
                 .stale_file_reads
                 .protected_tools
                 .iter()
-                .cloned(),
-        );
-        self.cached.compress = ToolProtection::new(self.compress.protected_tools.iter().cloned());
-        self.cached.commands = ToolProtection::new(self.commands.protected_tools.iter().cloned());
+                .partition(|t| !t.contains('*') && !t.contains('?'));
+            ToolProtection::new(exact.into_iter().cloned(), glob.into_iter().cloned())
+        };
+        self.cached.compress = {
+            let (exact, glob): (Vec<_>, Vec<_>) = self
+                .compress
+                .protected_tools
+                .iter()
+                .partition(|t| !t.contains('*') && !t.contains('?'));
+            ToolProtection::new(exact.into_iter().cloned(), glob.into_iter().cloned())
+        };
+        self.cached.commands = {
+            let (exact, glob): (Vec<_>, Vec<_>) = self
+                .commands
+                .protected_tools
+                .iter()
+                .partition(|t| !t.contains('*') && !t.contains('?'));
+            ToolProtection::new(exact.into_iter().cloned(), glob.into_iter().cloned())
+        };
         self.cached.paths =
             PathProtection::compile(&self.protected_file_patterns).map_err(|e| match e {
                 dcp_protected::ProtectionError::InvalidGlob { pattern, source } => {

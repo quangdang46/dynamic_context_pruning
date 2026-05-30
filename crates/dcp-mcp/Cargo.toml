@@ -18,6 +18,7 @@ dcp-core = { workspace = true }
 dcp-types = { workspace = true }
 dcp-config = { workspace = true }
 dcp-compress = { workspace = true }
+dcp-notification = { workspace = true }
 rmcp = { version = "1.7", features = ["server", "transport-io", "macros"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

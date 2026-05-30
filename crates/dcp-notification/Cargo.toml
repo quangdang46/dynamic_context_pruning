@@ -14,6 +14,7 @@ dcp-types = { workspace = true }
 dcp-config = { workspace = true }
 dcp-state = { workspace = true }
 dcp-tokens = { workspace = true }
+dcp-compress = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -22,6 +22,8 @@ use anyhow::Result;
 use dcp_compress::{CompressArgs, MessageEntry, RangeEntry};
 use dcp_config::Config;
 use dcp_core::ContextPruner;
+use dcp_notification::format::{format_stats_header, format_token_count};
+use dcp_notification::build_compress_visual_output;
 use dcp_types::BlockId;
 use rmcp::model::{
     Content, Implementation, InitializeResult, ListResourcesResult, ListToolsResult,
@@ -295,8 +297,9 @@ impl DcpMcpServer {
 
         match inner.pruner.handle_compress(args, &messages) {
             Ok(result) => {
-                let json_out = serde_json::to_string_pretty(&result).unwrap_or_default();
-                rmcp::model::CallToolResult::success(vec![Content::text(json_out)])
+                let state = inner.pruner.state();
+                let visual = build_compress_visual_output(state, &result.blocks, &[]);
+                rmcp::model::CallToolResult::success(vec![Content::text(visual)])
             }
             Err(e) => rmcp::model::CallToolResult::error(vec![Content::text(format!(
                 "compress error: {:?}",
@@ -341,8 +344,15 @@ impl DcpMcpServer {
 
         match inner.pruner.decompress(block_id) {
             Ok(result) => {
-                let json_out = serde_json::to_string_pretty(&result).unwrap_or_default();
-                rmcp::model::CallToolResult::success(vec![Content::text(json_out)])
+                let state = inner.pruner.state();
+                let header = format_stats_header(state.stats.total_prune_tokens, 0);
+                let msg = format!(
+                    "{} decompress\n  ✓ Block {} restored — anchor: {}",
+                    header,
+                    result.block_id,
+                    result.anchor_message_id
+                );
+                rmcp::model::CallToolResult::success(vec![Content::text(msg)])
             }
             Err(e) => rmcp::model::CallToolResult::error(vec![Content::text(format!(
                 "decompress error: {:?}",
@@ -387,14 +397,62 @@ impl DcpMcpServer {
 
         match inner.pruner.recompress(block_id) {
             Ok(result) => {
-                let json_out = serde_json::to_string_pretty(&result).unwrap_or_default();
-                rmcp::model::CallToolResult::success(vec![Content::text(json_out)])
+                let state = inner.pruner.state();
+                let header = format_stats_header(state.stats.total_prune_tokens, 0);
+                let msg = format!(
+                    "{} recompress\n  ↻ Block {} re-compressed — anchor: {}",
+                    header,
+                    result.block_id,
+                    result.anchor_message_id
+                );
+                rmcp::model::CallToolResult::success(vec![Content::text(msg)])
             }
             Err(e) => rmcp::model::CallToolResult::error(vec![Content::text(format!(
                 "recompress error: {:?}",
                 e
             ))]),
         }
+    }
+
+    fn run_manual_toggle(&self, args_json: &JsonValue) -> rmcp::model::CallToolResult {
+        let mode = args_json
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("toggle");
+
+        let mut inner = match self.inner.lock() {
+            Ok(i) => i,
+            Err(_) => {
+                return rmcp::model::CallToolResult::error(vec![Content::text(
+                    "failed to acquire lock".to_string(),
+                )]);
+            }
+        };
+
+        match mode {
+            "on" => {
+                inner.pruner.set_manual_mode(true);
+            }
+            "off" => {
+                inner.pruner.set_manual_mode(false);
+            }
+            "toggle" => {
+                let current = inner.pruner.state().manual_mode.enabled;
+                inner.pruner.set_manual_mode(!current);
+            }
+            _ => {
+                return rmcp::model::CallToolResult::error(vec![Content::text(
+                    "invalid mode: use on/off/toggle".to_string(),
+                )]);
+            }
+        }
+
+        let state = inner.pruner.state().manual_mode.enabled;
+        let msg = format!(
+            "Manual mode: {}",
+            if state { "ACTIVE" } else { "INACTIVE" }
+        );
+        rmcp::model::CallToolResult::success(vec![Content::text(msg)])
     }
 
     fn run_dcp_context(&self) -> rmcp::model::CallToolResult {
@@ -410,30 +468,42 @@ impl DcpMcpServer {
         let state = inner.pruner.state();
         let stats = inner.pruner.stats();
 
-        let context = serde_json::json!({
-            "sessionId": inner.session_id,
-            "currentTurn": state.current_turn,
-            "messageCount": state.message_ids.by_raw_id.len(),
-            "blockCount": state.prune.messages.blocks_by_id.len(),
-            "activeBlockCount": state.prune.messages.active_block_ids.len(),
-            "stats": {
-                "totalPruneTokens": stats.total_prune_tokens,
-                "dedupPruned": stats.dedup_pruned,
-                "purgeErrorsPruned": stats.purge_errors_pruned,
-                "staleFileReadsPruned": stats.stale_file_reads_pruned,
-                "compressRuns": stats.compress_runs,
-                "compressBlocksCommitted": stats.compress_blocks_committed,
-                "compressOversized": stats.compress_oversized,
-                "compactionsObserved": stats.compactions_observed,
-                "cacheBustEvents": stats.cache_bust_events,
-                "droppedInvalid": stats.dropped_invalid,
-                "storageSaveFailed": stats.storage_save_failed,
-            },
-        });
+        let total_tokens_saved = stats.total_prune_tokens as u64
+            + stats.dedup_pruned as u64
+            + stats.purge_errors_pruned as u64
+            + stats.stale_file_reads_pruned as u64;
 
-        rmcp::model::CallToolResult::success(vec![Content::text(
-            serde_json::to_string_pretty(&context).unwrap_or_default(),
-        )])
+        let header = format_stats_header(total_tokens_saved, stats.total_prune_tokens as u64);
+        let divider = "─".repeat(header.len().saturating_sub(4).max(32));
+
+        let context_text = format!(
+            "\
+{header}
+{divider}
+Session: {}
+Turn: {}
+Messages: {} total | {} blocks | {} active
+Stats:
+  ├─ prune tokens: {}
+  ├─ dedup pruned: {}
+  ├─ purge errors: {}
+  ├─ stale reads: {}
+  ├─ compress runs: {}
+  └─ blocks committed: {}",
+            inner.session_id,
+            state.current_turn,
+            state.message_ids.by_raw_id.len(),
+            state.prune.messages.blocks_by_id.len(),
+            state.prune.messages.active_block_ids.len(),
+            format_token_count(stats.total_prune_tokens as u64, true),
+            format_token_count(stats.dedup_pruned as u64, true),
+            format_token_count(stats.purge_errors_pruned as u64, true),
+            format_token_count(stats.stale_file_reads_pruned as u64, true),
+            stats.compress_runs,
+            stats.compress_blocks_committed,
+        );
+
+        rmcp::model::CallToolResult::success(vec![Content::text(context_text)])
     }
 
     fn run_dcp_stats(&self) -> rmcp::model::CallToolResult {
@@ -449,36 +519,60 @@ impl DcpMcpServer {
         let stats = inner.pruner.stats();
         let config = inner.pruner.config();
 
-        let output = serde_json::json!({
-            "config": {
-                "enabled": config.enabled,
-                "debug": config.debug,
-                "cacheStabilityMode": format!("{:?}", config.cache_stability_mode),
-            },
-            "stats": {
-                "totalPruneTokens": stats.total_prune_tokens,
-                "dedupPruned": stats.dedup_pruned,
-                "purgeErrorsPruned": stats.purge_errors_pruned,
-                "staleFileReadsPruned": stats.stale_file_reads_pruned,
-                "compressRuns": stats.compress_runs,
-                "compressBlocksCommitted": stats.compress_blocks_committed,
-                "compressOversized": stats.compress_oversized,
-                "compressUseful": stats.compress_useful,
-                "compactionsObserved": stats.compactions_observed,
-                "cacheBustEvents": stats.cache_bust_events,
-                "orphanToolResults": stats.orphan_tool_results,
-                "droppedInvalid": stats.dropped_invalid,
-                "invalidStatusTransitions": stats.invalid_status_transitions,
-                "normalizeDepthClamped": stats.normalize_depth_clamped,
-                "pathNullByteStripped": stats.path_null_byte_stripped,
-                "storageSaveFailed": stats.storage_save_failed,
-                "persistedCorruption": stats.persisted_corruption,
-            },
-        });
+        let total_saved = stats.total_prune_tokens.saturating_add(stats.compress_oversized as u64).saturating_add(stats.compress_useful as u64);
 
-        rmcp::model::CallToolResult::success(vec![Content::text(
-            serde_json::to_string_pretty(&output).unwrap_or_default(),
-        )])
+        let output = format!(
+            "{}
+─────────────────────────────────
+Config:
+  ├─ enabled: {}
+  └─ debug: {}
+
+Prune Stats:
+  ├─ total prune tokens: {}
+  ├─ dedup pruned: {}
+  ├─ purge errors: {}
+  ├─ stale file reads: {}
+  └─ orphan tool results: {}
+
+Compression Stats:
+  ├─ runs: {}
+  ├─ blocks committed: {}
+  ├─ oversized: {}
+  ├─ useful: {}
+  └─ compactions observed: {}
+
+Errors:
+  ├─ cache bust events: {}
+  ├─ dropped invalid: {}
+  ├─ invalid status transitions: {}
+  └─ storage save failed: {}
+
+Path Handling:
+  ├─ null byte stripped: {}
+  └─ depth clamped: {}",
+            format_stats_header(total_saved, 0),
+            config.enabled,
+            config.debug,
+            format_token_count(stats.total_prune_tokens, true),
+            format_token_count(stats.dedup_pruned as u64, true),
+            format_token_count(stats.purge_errors_pruned as u64, true),
+            format_token_count(stats.stale_file_reads_pruned as u64, true),
+            format_token_count(stats.orphan_tool_results as u64, true),
+            stats.compress_runs,
+            stats.compress_blocks_committed,
+            format_token_count(stats.compress_oversized as u64, true),
+            format_token_count(stats.compress_useful as u64, true),
+            stats.compactions_observed,
+            stats.cache_bust_events,
+            stats.dropped_invalid,
+            stats.invalid_status_transitions,
+            stats.storage_save_failed,
+            stats.path_null_byte_stripped,
+            stats.normalize_depth_clamped,
+        );
+
+        rmcp::model::CallToolResult::success(vec![Content::text(output)])
     }
 
     fn run_dcp_sweep(&self, args_json: &JsonValue) -> rmcp::model::CallToolResult {
@@ -503,15 +597,11 @@ impl DcpMcpServer {
             ))]);
         }
 
-        let result = serde_json::json!({
-            "sweepTriggered": true,
-            "pendingCount": _count,
-            "message": format!("Manual sweep triggered. {} prune decisions pending.", _count),
-        });
-
-        rmcp::model::CallToolResult::success(vec![Content::text(
-            serde_json::to_string_pretty(&result).unwrap_or_default(),
-        )])
+        let msg = format!(
+            "✓ Sweep triggered\n  {} prune decisions pending.",
+            _count
+        );
+        rmcp::model::CallToolResult::success(vec![Content::text(msg)])
     }
 }
 
@@ -586,6 +676,11 @@ impl Service<RoleServer> for DcpMcpServer {
                             "Trigger a manual sweep (apply pending prune decisions)",
                             make_input_schema(&[("count", "number")]),
                         ),
+                        Tool::new(
+                            "manual_toggle",
+                            "Toggle manual compression mode (on/off/toggle)",
+                            make_input_schema(&[("mode", "string")]),
+                        ),
                     ];
                     Ok(rmcp::model::ServerResult::ListToolsResult(
                         ListToolsResult::with_all_items(tools),
@@ -604,6 +699,7 @@ impl Service<RoleServer> for DcpMcpServer {
                         "dcp_context" => self.run_dcp_context(),
                         "dcp_stats" => self.run_dcp_stats(),
                         "dcp_sweep" => self.run_dcp_sweep(&args_json),
+                        "manual_toggle" => self.run_manual_toggle(&args_json),
                         _ => rmcp::model::CallToolResult::error(vec![Content::text(format!(
                             "unknown tool: {}",
                             req.params.name

@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn protected_tool_outputs_appends_for_protected_tool_only() {
         let cfg = StaticCompressConfig {
-            protected_tools: ToolProtection::new(["task"]),
+            protected_tools: ToolProtection::new_exact(["task"]),
             ..StaticCompressConfig::defaults()
         };
         let messages = vec![

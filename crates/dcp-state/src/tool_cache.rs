@@ -297,6 +297,23 @@ pub fn extract_file_paths<C: ConfigLike + ?Sized>(
                 }
             }
         }
+        // Handle apply_patch with patchText — Claude Code format (SPEC §4.6):
+        // "*** Add File: path", "*** Update File: path", "*** Delete File: path"
+        if tool == "apply_patch" {
+            if let Some(JsonValue::String(patch_text)) = map.get("patchText") {
+                for line in patch_text.lines() {
+                    if let Some(rest) = line.strip_prefix("*** Add File: ").or_else(|| {
+                        line.strip_prefix("*** Update File: ")
+                            .or_else(|| line.strip_prefix("*** Delete File: "))
+                    }) {
+                        let path = rest.trim();
+                        if !path.is_empty() {
+                            push_path(&mut out, path, path_null_bytes);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     dedup_preserve_order(&mut out);

@@ -3,7 +3,16 @@
 //! Orchestrates: validate → resolve → placeholder check → wrap →
 //! commit_block → frontier advance → return [`CompressResult`].
 
+use std::time::SystemTime;
+
 use dcp_types::{BlockId, CompressionBlock, CompressionMode, Message, RunId, SessionState};
+
+fn timestamp_now() -> i64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+}
 
 use crate::block::{commit_block, maybe_advance_frontier};
 use crate::config::CompressConfig;
@@ -14,6 +23,7 @@ use crate::placeholder::{
     validate_placeholders,
 };
 use crate::resolve::{ResolvedRange, resolve_range};
+use crate::timing::resolve_compression_duration;
 use crate::types::{CompressArgs, CompressResult, NotificationEntry, RangeEntry};
 use crate::validate::{validate_non_overlapping, validate_topic_and_content};
 use crate::wrap::{
@@ -65,7 +75,7 @@ pub fn handle_compress<C: CompressConfig + ?Sized>(
 
     match args {
         CompressArgs::Range { topic, content } => {
-            handle_range(&topic, &content, state, messages, config, now_ms)
+            handle_range(&topic, &content, state, messages, config)
         }
         CompressArgs::Message { topic, content } => {
             handle_message(&topic, &content, state, messages, config, now_ms)
@@ -79,7 +89,6 @@ fn handle_range<C: CompressConfig + ?Sized>(
     state: &mut SessionState,
     messages: &[Message],
     config: &C,
-    now_ms: i64,
 ) -> Result<CompressResult, CompressError> {
     // ── Phase A: resolve all ranges and validate non-overlap ─────────
     let mut plans: Vec<(ResolvedRange, &RangeEntry)> = Vec::with_capacity(entries.len());
@@ -107,7 +116,9 @@ fn handle_range<C: CompressConfig + ?Sized>(
     // a block from an earlier range in the same call). Compute the
     // wrapped summary, allocate a block id, build the block, commit,
     // advance the frontier.
+    let started_at = timestamp_now();
     for (plan, entry) in plans {
+        let now_ms = timestamp_now();
         let mentioned = parse_placeholders(&entry.summary);
 
         let injected = inject_placeholder_expansions(&entry.summary, state)?;
@@ -156,7 +167,7 @@ fn handle_range<C: CompressConfig + ?Sized>(
             effective_tool_ids: effective_tools,
             compressed_tokens,
             summary_tokens,
-            duration_ms: 0,
+            duration_ms: resolve_compression_duration(started_at, now_ms, 0) as u64,
             active: true,
             deactivated_by_user: false,
             created_at: now_ms,
@@ -265,6 +276,7 @@ fn handle_message<C: CompressConfig + ?Sized>(
 
     let run_id = allocate_run_id(state);
     let mut new_blocks_meta: Vec<NotificationEntry> = Vec::with_capacity(plans.len());
+    let started_at = timestamp_now();
 
     for (plan, entry) in plans {
         // Message mode: no placeholders, no missing-blocks step.
@@ -297,7 +309,7 @@ fn handle_message<C: CompressConfig + ?Sized>(
             effective_tool_ids: plan.direct_tool_ids.clone(),
             compressed_tokens,
             summary_tokens,
-            duration_ms: 0,
+            duration_ms: resolve_compression_duration(started_at, now_ms, 0) as u64,
             active: true,
             deactivated_by_user: false,
             created_at: now_ms,
