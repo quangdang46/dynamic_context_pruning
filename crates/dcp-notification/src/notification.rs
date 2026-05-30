@@ -136,9 +136,19 @@ pub fn build_compress_visual_output(
         })
         .collect();
 
+    // Build pruned messages map — messages that have been replaced by a block
+    let active_pruned: HashMap<String, u64> = state
+        .prune
+        .messages
+        .by_message_id
+        .iter()
+        .filter(|(_, entry)| !entry.replacement_text.is_empty())
+        .map(|(id, entry)| (id.clone(), entry.tokens_saved))
+        .collect();
+
     let bar = format_progress_bar(
         session_message_ids,
-        &HashMap::new(),
+        &active_pruned,
         &newly_compressed,
         50,
     );

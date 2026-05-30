@@ -295,10 +295,13 @@ impl DcpMcpServer {
             }
         };
 
+        // Extract session message IDs from the input messages
+        let session_message_ids: Vec<String> = messages.iter().map(|m| m.id.clone()).collect();
+
         match inner.pruner.handle_compress(args, &messages) {
             Ok(result) => {
                 let state = inner.pruner.state();
-                let visual = build_compress_visual_output(state, &result.blocks, &[]);
+                let visual = build_compress_visual_output(state, &result.blocks, &session_message_ids);
                 rmcp::model::CallToolResult::success(vec![Content::text(visual)])
             }
             Err(e) => rmcp::model::CallToolResult::error(vec![Content::text(format!(
