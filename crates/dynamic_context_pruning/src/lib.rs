@@ -104,7 +104,7 @@ pub use dcp_traits::defaults;
 
 pub use dcp_core::{
     CommandOutcome, ContextPruner, ContextPrunerBuilder, DecompressResult, Error, RecompressResult,
-    ToolSchema,
+    ToolSchema, TransformResult,
 };
 
 // dcp-compress lives behind dcp-core; re-export the args / result shapes

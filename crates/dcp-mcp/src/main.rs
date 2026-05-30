@@ -350,7 +350,7 @@ impl DcpMcpServer {
                 let state = inner.pruner.state();
                 let header = format_stats_header(state.stats.total_prune_tokens, 0);
                 let msg = format!(
-                    "{} decompress\n  ✓ Block {} restored — anchor: {}",
+                    "{}\n  ✓ Block {} restored — anchor: {}",
                     header,
                     result.block_id,
                     result.anchor_message_id
@@ -403,7 +403,7 @@ impl DcpMcpServer {
                 let state = inner.pruner.state();
                 let header = format_stats_header(state.stats.total_prune_tokens, 0);
                 let msg = format!(
-                    "{} recompress\n  ↻ Block {} re-compressed — anchor: {}",
+                    "{}\n  ↻ Block {} re-compressed — anchor: {}",
                     header,
                     result.block_id,
                     result.anchor_message_id

@@ -1300,6 +1300,8 @@ pub struct Nudges {
     pub iteration_counter: u32,
     /// Pairs already turn-nudged, stored as `(user_id, assistant_id)`.
     pub turn_nudged_pairs: HashSet<(String, String)>,
+    /// Kind of the most recently injected nudge, if any.
+    pub last_nudge_kind: Option<String>,
 }
 
 /// Telemetry-only timing accumulator for compression runs.

@@ -188,6 +188,10 @@ fn handle_range<C: CompressConfig + ?Sized>(
             run_id: run_id.value(),
             summary: wrapped,
             summary_tokens,
+            topic: block.topic.clone(),
+            compressed_tokens: block.compressed_tokens,
+            direct_message_count: plan.direct_message_ids.len(),
+            direct_tool_count: plan.direct_tool_ids.len(),
         });
     }
 
@@ -325,6 +329,10 @@ fn handle_message<C: CompressConfig + ?Sized>(
             run_id: run_id.value(),
             summary: wrapped,
             summary_tokens,
+            topic: block.topic.clone(),
+            compressed_tokens: block.compressed_tokens,
+            direct_message_count: plan.direct_message_ids.len(),
+            direct_tool_count: plan.direct_tool_ids.len(),
         });
     }
 

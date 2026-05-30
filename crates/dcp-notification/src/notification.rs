@@ -119,8 +119,10 @@ pub fn build_compress_visual_output(
 
     let mut lines = Vec::new();
 
-    // Header with total stats
-    lines.push(format_stats_header(state.stats.total_prune_tokens, 0));
+    // Header — total removed + total summary across all blocks
+    let total_removed: u64 = blocks.iter().map(|b| b.compressed_tokens).sum();
+    let total_summary: u64 = blocks.iter().map(|b| b.summary_tokens).sum();
+    lines.push(format_stats_header(total_removed, total_summary));
 
     // Progress bar
     let newly_compressed: Vec<String> = blocks
@@ -157,24 +159,24 @@ pub fn build_compress_visual_output(
 
     // Per-block details
     for entry in blocks {
-        let run_id = entry.run_id;
-        let summary_tokens = entry.summary_tokens;
         lines.push(format!(
-            "▣ Compression #{} — {} summary",
-            run_id,
-            format_token_count(summary_tokens, true)
+            "▣ Compression #{} -{} removed, +{} summary",
+            entry.run_id,
+            format_token_count(entry.compressed_tokens, true),
+            format_token_count(entry.summary_tokens, true),
         ));
-        let topic_str = if let Some(b) = state
-            .prune
-            .messages
-            .blocks_by_id
-            .get(&dcp_types::BlockId::new(entry.block_id))
-        {
-            b.anchor_message_id.clone()
+        lines.push(format!("→ Topic: {}", entry.topic));
+
+        let msg_count = entry.direct_message_count;
+        let tool_count = entry.direct_tool_count;
+        if tool_count > 0 {
+            lines.push(format!(
+                "→ Items: {} messages and {} tools compressed",
+                msg_count, tool_count
+            ));
         } else {
-            "(unknown)".to_string()
-        };
-        lines.push(format!("  → Topic: {}", topic_str));
+            lines.push(format!("→ Items: {} messages compressed", msg_count));
+        }
     }
 
     lines.join("\n")

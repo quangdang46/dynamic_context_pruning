@@ -16,7 +16,7 @@ use dcp_traits::{
 use dcp_types::{BlockId, Message, Part, Role, SessionState, Stats};
 
 use crate::error::Error;
-use crate::pipeline;
+use crate::pipeline::{self, TransformResult};
 use crate::tokenizer::Char4Tokenizer;
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -132,20 +132,69 @@ impl ContextPruner {
     /// Returns a fresh `Vec<Message>` — the input is consumed but not
     /// mutated by the host's perspective.
     pub fn transform_messages(&mut self, messages: Vec<Message>) -> Result<Vec<Message>, Error> {
-        // Master switch (SPEC §10.2).
+        let result = self.transform_messages_inner(messages)?;
+        Ok(result.messages)
+    }
+
+    pub fn transform_messages_with_diff(
+        &mut self,
+        messages: Vec<Message>,
+    ) -> Result<TransformResult, Error> {
+        let input_ids: Vec<String> = messages.iter().map(|m| m.id.clone()).collect();
+        let stats_before = self.stats().clone();
+        let result = self.transform_messages_inner(messages)?;
+        let output_ids: std::collections::HashSet<String> =
+            result.messages.iter().map(|m| m.id.clone()).collect();
+        let removed: Vec<String> = input_ids
+            .into_iter()
+            .filter(|id| !output_ids.contains(id))
+            .collect();
+        let stats_after = self.stats();
+        let tokens_saved = stats_after
+            .total_prune_tokens
+            .saturating_sub(stats_before.total_prune_tokens);
+        let changed = !removed.is_empty() || tokens_saved > 0;
+        let new_block_ids: Vec<BlockId> = self
+            .state
+            .prune
+            .messages
+            .active_block_ids
+            .iter()
+            .cloned()
+            .collect();
+        Ok(TransformResult {
+            messages: result.messages,
+            removed_message_ids: removed,
+            pruned_tool_ids: result.pruned_tool_ids,
+            tokens_saved,
+            new_block_ids,
+            changed,
+        })
+    }
+
+    fn transform_messages_inner(
+&mut self,
+        messages: Vec<Message>,
+    ) -> Result<TransformResult, Error> {
+        let mut pruned_tool_ids: Vec<String> = Vec::new();
+
         if !self.config.enabled {
-            return Ok(messages);
+            return Ok(TransformResult {
+                messages: messages,
+                removed_message_ids: Vec::new(),
+                pruned_tool_ids: Vec::new(),
+                tokens_saved: 0,
+                new_block_ids: Vec::new(),
+                changed: false,
+            });
         }
 
         let now_ms = chrono::Utc::now().timestamp_millis();
 
-        // Phase 0: validation + compaction detection.
         let valid = pipeline::filter_valid_messages(messages, &mut self.state);
         pipeline::detect_compaction(&mut self.state, &valid, now_ms);
 
-        // Phase 1: synchronisation.
         pipeline::sync_state(&mut self.state, &self.config, &valid);
-        // Cache the system-prompt token count for the nudge subsystem.
         let system_addendum = pipeline::render_system_addendum(&self.prompts, &self.config);
         pipeline::cache_system_prompt_tokens(
             &mut self.state,
@@ -153,18 +202,27 @@ impl ContextPruner {
             &system_addendum,
         );
 
-        // Phase 2: subagent gate.
         if self.state.is_subagent && !self.config.experimental.allow_subagents {
-            return Ok(valid);
+            return Ok(TransformResult {
+                messages: valid,
+                removed_message_ids: Vec::new(),
+                pruned_tool_ids: Vec::new(),
+                tokens_saved: 0,
+                new_block_ids: Vec::new(),
+                changed: false,
+            });
         }
 
-        // Phase 3: strategies (cache-stability gated).
         let before_pruned = self.state.prune.tools.len();
         let apply_now = pipeline::should_apply_now(&self.state, &self.config);
         if apply_now {
-            let _outcomes =
+            let outcomes =
                 pipeline::run_strategies(&mut self.state, &self.config, &mut self.telemetry);
-            // Run any host-supplied custom strategies in declaration order.
+            for outcome in &outcomes {
+                for id in &outcome.pruned_ids {
+                    pruned_tool_ids.push(id.clone());
+                }
+            }
             for strat in &self.custom_strategies {
                 let outcome = strat
                     .apply(&mut self.state, &valid, &self.config)
@@ -183,27 +241,20 @@ impl ContextPruner {
             self.state.force_apply_requested = false;
             self.state.pending_prune = None;
         } else {
-            // Strategies still run (per SPEC §7.2) but their decisions
-            // are recorded as pending without being applied to messages.
             let _outcomes =
                 pipeline::run_strategies(&mut self.state, &self.config, &mut self.telemetry);
             pipeline::accumulate_pending(&mut self.state, before_pruned);
         }
 
-        // Phase 4: apply prune decisions (or pass through when gated).
         let pruned = if apply_now {
             pipeline::apply_prune(&self.state, &valid)
         } else {
             valid.clone()
         };
 
-        // Phase 5: compression block expansion.
         let pruned = pipeline::expand_compressed(pruned, &self.state);
-
-        // Phase 6: subagent result inlining (parent only).
         let pruned = pipeline::inject_subagent_results(&self.state, &self.config, pruned);
 
-        // Phase 7: nudges + message ids.
         let mut pruned = pruned;
         pipeline::inject_nudges_and_ids(
             &mut self.state,
@@ -214,7 +265,6 @@ impl ContextPruner {
             &mut self.telemetry,
         );
 
-        // Phase 8: pending manual triggers.
         if let Some(trigger) = self.state.pending_manual_trigger.take()
             && trigger.force_apply
         {
@@ -222,18 +272,13 @@ impl ContextPruner {
             // to do here.
         }
 
-        // Phase 9: tail.
         pipeline::strip_internal_metadata(&mut pruned);
 
-        // Persist (best-effort, increment storage_save_failed on error).
         if let Some(session_id) = self.state.session_id.clone() {
             let envelope = pipeline::build_persisted(&self.state);
             if let Err(e) = self.persistence.save(&session_id, &envelope) {
                 self.state.stats.storage_save_failed =
                     self.state.stats.storage_save_failed.saturating_add(1);
-                // Surface the most recent failure via telemetry but do
-                // not fail the transform — the host has the message
-                // list and will re-derive on next start.
                 self.telemetry.record(dcp_telemetry::EventKind::Other {
                     name: format!("persistence_save_failed:{e}"),
                 });
@@ -244,8 +289,25 @@ impl ContextPruner {
             name: "transform_messages".into(),
         });
 
-        Ok(pruned)
+        let new_block_ids: Vec<BlockId> = self
+            .state
+            .prune
+            .messages
+            .active_block_ids
+            .iter()
+            .cloned()
+            .collect();
+
+        Ok(TransformResult {
+            messages: pruned,
+            removed_message_ids: Vec::new(),
+            pruned_tool_ids,
+            tokens_saved: 0,
+            new_block_ids,
+            changed: false,
+        })
     }
+
 
     /// Append the system-prompt addendum (SPEC.md §6.6). The addendum
     /// renders the protected-tools block, the manual-mode note (if
@@ -475,6 +537,50 @@ impl ContextPruner {
         &self.prompts
     }
 
+    /// Count total tokens across all message parts using the installed tokenizer.
+    ///
+    /// Convenience method so jcode doesn't need to access the tokenizer directly.
+    pub fn count_messages_tokens(&self, messages: &[Message]) -> u64 {
+        let mut total = 0u64;
+        let tokenizer = self.tokenizer.as_ref();
+        for msg in messages {
+            for part in &msg.parts {
+                match part {
+                    Part::Text(text) | Part::Reasoning(text) => {
+                        total = total.saturating_add(tokenizer.count(text) as u64);
+                    }
+                    Part::ToolCall { tool, input, .. } => {
+                        total = total.saturating_add(tokenizer.count(tool) as u64);
+                        total = total.saturating_add(
+                            tokenizer.count(&serde_json::to_string(input).unwrap_or_default()) as u64,
+                        );
+                    }
+                    Part::ToolResult { output, error, .. } => {
+                        if let Some(o) = output {
+                            total = total.saturating_add(tokenizer.count(o) as u64);
+                        }
+                        if let Some(e) = error {
+                            total = total.saturating_add(tokenizer.count(e) as u64);
+                        }
+                    }
+                    Part::Image { .. } => {
+                        total = total.saturating_add(85);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        total
+    }
+
+    /// Return the kind of the most recently injected nudge, if any.
+    ///
+    /// jcode can check this after `transform_messages()` to decide
+    /// whether to show a context-limit warning in the TUI.
+    pub fn last_nudge_kind(&self) -> Option<String> {
+        self.state.nudges.last_nudge_kind.clone()
+    }
+
     /// Borrow the optional [`MemoryRetriever`] hook installed via the
     /// builder. Returns `None` when the host has not provided one.
     pub fn memory(&self) -> Option<&Arc<dyn MemoryRetriever>> {
@@ -541,6 +647,19 @@ impl ContextPruner {
     /// (SPEC.md §3.1).
     pub fn set_session_id(&mut self, id: impl Into<String>) {
         self.state.session_id = Some(id.into());
+    }
+
+    /// Check whether DCP has pending prune decisions or pending work.
+    ///
+    /// Returns `true` when:
+    /// - There is a pending prune snapshot waiting to be applied
+    /// - There are pending tool-level prune decisions (`prune.tools` non-empty)
+    ///
+    /// jcode can call this before `transform_messages()` to decide whether
+    /// the DCP transform is needed for the current turn.
+    pub fn has_pending_work(&self) -> bool {
+        let state = &self.state;
+        state.pending_prune.is_some() || !state.prune.tools.is_empty()
     }
 
     // Internal helper used by the slash-command dispatcher.
@@ -936,5 +1055,45 @@ mod tests {
     fn context_pruner_is_send_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<ContextPruner>();
+    }
+
+    #[test]
+    fn has_pending_work_false_on_fresh() {
+        let pruner = ContextPruner::new(Config::default()).unwrap();
+        assert!(!pruner.has_pending_work());
+    }
+
+    #[test]
+    fn transform_with_diff_no_changes() {
+        let mut pruner = ContextPruner::new(Config::default()).unwrap();
+        let msgs = vec![
+            Message::user_text("hello", 0, "m0001"),
+            Message::assistant_text("hi", 0, "m0002"),
+        ];
+        let result = pruner.transform_messages_with_diff(msgs).unwrap();
+        assert!(!result.changed);
+        assert!(result.removed_message_ids.is_empty());
+        assert_eq!(result.messages.len(), 2);
+    }
+
+    #[test]
+    fn count_messages_tokens_empty() {
+        let pruner = ContextPruner::new(Config::default()).unwrap();
+        let tokens = pruner.count_messages_tokens(&[]);
+        assert_eq!(tokens, 0);
+    }
+
+    #[test]
+    fn count_messages_tokens_simple() {
+        let pruner = ContextPruner::new(Config::default()).unwrap();
+        let msgs = vec![Message::user_text("hello world", 0, "m0001")];
+        let tokens = pruner.count_messages_tokens(&msgs);
+        assert!(tokens > 0);
+    }
+
+    #[test]
+    fn last_nudge_kind_none_on_fresh() {
+        let pruner = ContextPruner::new(Config::default()).unwrap();
+        assert!(pruner.last_nudge_kind().is_none());
     }
 }

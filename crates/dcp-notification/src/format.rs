@@ -28,10 +28,14 @@ impl BarChar {
 
 /// Format the stats header line.
 ///
-/// Returns `"▣ DCP | ~{total}K saved total"` where `total = total_tokens_saved / 1000`.
-pub fn format_stats_header(total_tokens_saved: u64, _prune_token_counter: u64) -> String {
-    let total_k = total_tokens_saved / 1000;
-    format!("▣ DCP | ~{total_k}K saved total")
+/// Returns `"▣ DCP | -X.XK removed, +X.XK summary"` showing total tokens
+/// removed (compressed) and total summary tokens added.
+pub fn format_stats_header(total_tokens_removed: u64, total_summary_tokens: u64) -> String {
+    format!(
+        "▣ DCP | -{} removed, +{} summary",
+        format_token_count(total_tokens_removed, true),
+        format_token_count(total_summary_tokens, true)
+    )
 }
 
 /// Format a token count for display.
@@ -349,12 +353,20 @@ mod tests {
 
     #[test]
     fn test_format_stats_header() {
-        assert_eq!(format_stats_header(0, 0), "▣ DCP | ~0K saved total");
-        assert_eq!(format_stats_header(1500, 100), "▣ DCP | ~1K saved total");
-        assert_eq!(format_stats_header(2500, 100), "▣ DCP | ~2K saved total");
+        assert_eq!(format_stats_header(0, 0), "▣ DCP | -0 removed, +0 summary");
+        assert_eq!(format_stats_header(1500, 800), "▣ DCP | -1.5K removed, +800 summary");
+        assert_eq!(format_stats_header(2500, 100), "▣ DCP | -2.5K removed, +100 summary");
         assert_eq!(
             format_stats_header(100_000, 5000),
-            "▣ DCP | ~100K saved total"
+            "▣ DCP | -100K removed, +5K summary"
+        );
+        assert_eq!(
+            format_stats_header(322_200, 4100),
+            "▣ DCP | -322.2K removed, +4.1K summary"
+        );
+        assert_eq!(
+            format_stats_header(18_900, 4100),
+            "▣ DCP | -18.9K removed, +4.1K summary"
         );
     }
 

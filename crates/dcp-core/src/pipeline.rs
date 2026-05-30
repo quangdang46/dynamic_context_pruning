@@ -22,7 +22,31 @@ use dcp_state::{
 };
 use dcp_telemetry::{EventKind, Telemetry};
 use dcp_traits::{PruneOutcome, Tokenizer};
-use dcp_types::{Message, Part, PendingPrune, Role, SessionState, ToolStatus};
+use dcp_types::{BlockId, Message, Part, PendingPrune, Role, SessionState, ToolStatus};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Transform result
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Result of a DCP transform pass, including what changed.
+///
+/// jcode uses the diff fields to update its CompactionManager budget
+/// and show notifications about what was pruned.
+#[derive(Clone, Debug)]
+pub struct TransformResult {
+    /// The transformed message list (with pruned content replaced).
+    pub messages: Vec<Message>,
+    /// IDs of messages that were removed or replaced by the transform.
+    pub removed_message_ids: Vec<String>,
+    /// IDs of tool results that were pruned.
+    pub pruned_tool_ids: Vec<String>,
+    /// Estimated tokens saved by this transform pass.
+    pub tokens_saved: u64,
+    /// Block IDs of new compression blocks created during this pass.
+    pub new_block_ids: Vec<BlockId>,
+    /// Whether any changes were made.
+    pub changed: bool,
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Validation (SPEC.md §2.5)

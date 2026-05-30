@@ -82,6 +82,16 @@ pub enum NudgeKind {
     },
 }
 
+impl NudgeKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NudgeKind::ContextLimit { .. } => "context_limit",
+            NudgeKind::Turn => "turn",
+            NudgeKind::Iteration { .. } => "iteration",
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // InjectionMode
 // ─────────────────────────────────────────────────────────────────────────
@@ -486,6 +496,7 @@ pub fn inject_nudges(
                 }
             }
         }
+        state.nudges.last_nudge_kind = Some(kind.as_str().to_string());
     }
 }
 

@@ -61,6 +61,14 @@ pub struct NotificationEntry {
     pub summary: String,
     /// Token count of the wrapped summary.
     pub summary_tokens: u64,
+    /// Batch-level topic from the compress call.
+    pub topic: String,
+    /// Tokens removed by this compression block.
+    pub compressed_tokens: u64,
+    /// Number of messages directly covered by this block.
+    pub direct_message_count: usize,
+    /// Number of tool call IDs directly covered by this block.
+    pub direct_tool_count: usize,
 }
 
 /// Result returned by [`crate::handle_compress`].

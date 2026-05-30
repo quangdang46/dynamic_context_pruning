@@ -48,7 +48,7 @@ pub(crate) mod strip;
 
 pub use commands::CommandOutcome;
 pub use error::Error;
-pub use pipeline::ToolSchema;
+pub use pipeline::{ToolSchema, TransformResult};
 pub use pruner::{ContextPruner, ContextPrunerBuilder, DecompressResult, RecompressResult};
 pub use tokenizer::Char4Tokenizer;
 
