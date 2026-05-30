@@ -27,7 +27,7 @@ OWNER="quangdang46"
 REPO="dynamic_context_pruning"
 DEST="${DEST:-$HOME/.local/bin}"
 VERSION="${VERSION:-}"
-QUIET=0; EASY=0; VERIFY=0; FROM_SOURCE=0; UNINSTALL=0; DRY_RUN=0
+QUIET=0; EASY=0; VERIFY=0; FROM_SOURCE=0; UNINSTALL=0; DRY_RUN=0; CHECK=0
 NO_MCP=0; NO_HOOKS=0; NO_GIT_HOOK=0
 MAX_RETRIES=3; DOWNLOAD_TIMEOUT=120
 LOCK_DIR="/tmp/${BINARY_NAME}-install.lock.d"
@@ -76,6 +76,7 @@ ${BOLD}Options:${RESET}
   --no-mcp             Skip MCP provider configuration
   --no-hooks           Skip Claude Code hooks configuration
   --no-git-hook        Skip git pre-commit hook
+  --check              Check DCP installation and provider configs
   --dry-run            Preview what would be done without changes
   --quiet, -q          Suppress progress output
   --uninstall          Remove DCP and all configurations
@@ -120,8 +121,9 @@ while [ $# -gt 0 ]; do
         --no-hooks)     NO_HOOKS=1;             shift;;
         --no-git-hook)  NO_GIT_HOOK=1;          shift;;
         --dry-run)      DRY_RUN=1;              shift;;
-        --quiet|-q)     QUIET=1;                shift;;
-        --uninstall)    UNINSTALL=1;            shift;;
+--quiet|-q)     QUIET=1;                shift;;
+        --check)       CHECK=1;                shift;;
+        --uninstall)   UNINSTALL=1;            shift;;
         -h|--help)      usage;;
         *) shift;;
     esac
@@ -171,6 +173,182 @@ do_uninstall() {
 }
 
 [ "$UNINSTALL" -eq 1 ] && { acquire_lock; do_uninstall; }
+
+# ── Health Check ────────────────────────────────────────────────────────────────
+
+do_check() {
+    echo "" >&2
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════${RESET}" >&2
+    echo -e "${BOLD}  DCP Installation Check${RESET}" >&2
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════${RESET}" >&2
+    echo "" >&2
+
+    local exit_code=0
+
+    # ── 1. Binary checks ──────────────────────────────────────────────────────
+    echo -e "  ${BOLD}Binaries:${RESET}" >&2
+
+    for bin in dcp dcp-mcp dcp-claude-hook; do
+        local bin_path="$DEST/$bin"
+        if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
+            local ver
+            ver=$("$bin_path" --version 2>/dev/null || echo "unknown")
+            echo -e "    ${GREEN}✓${RESET} ${bin}: ${CYAN}${ver}${RESET}" >&2
+        else
+            echo -e "    ${RED}✗${RESET} ${bin}: ${DIM}not found or not executable${RESET}" >&2
+            exit_code=1
+        fi
+    done
+
+    # ── 2. MCP provider checks ───────────────────────────────────────────────
+    echo "" >&2
+    echo -e "  ${BOLD}MCP Providers:${RESET}" >&2
+
+    _check_mcp_json "Claude Code" "$HOME/.claude/settings.json" "mcpServers.dcp"
+    _check_mcp_json "Cursor" "$HOME/.config/Cursor/User/settings.json" "mcp.servers.dcp"
+    _check_mcp_json "Cline" "$HOME/.cline/mcp_settings.json" "mcpServers.dcp"
+    _check_mcp_json "Windsurf" "$HOME/.codeium/windsurf/mcp_config.json" "mcpServers.dcp"
+    _check_mcp_json "VS Code Copilot" "$HOME/.config/Code/User/settings.json" "github.copilot.chat.mcp.dcp"
+    _check_mcp_json "OpenCode" "$HOME/.opencode.json" "mcpServers.dcp"
+    _check_mcp_json "Gemini CLI" "$HOME/.gemini/settings.json" "mcpServers.dcp"
+    _check_mcp_json "Amazon Q" "$HOME/.aws/amazonq/mcp.json" "mcpServers.dcp"
+    _check_mcp_json "Warp" "$HOME/.warp/.mcp.json" "mcpServers.dcp"
+
+    # TOML-based
+    _check_mcp_toml "Codex CLI" "$HOME/.codex/config.toml" "mcp_servers.dcp"
+
+    # ── 3. Hook checks ─────────────────────────────────────────────────────────
+    echo "" >&2
+    echo -e "  ${BOLD}Hooks:${RESET}" >&2
+
+    _check_claude_hooks
+    _check_codex_hooks
+    _check_gemini_hooks
+    _check_amazonq_hooks
+
+    echo "" >&2
+    echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════${RESET}" >&2
+
+    if [ $exit_code -eq 0 ]; then
+        echo -e "  ${GREEN}All checks passed ✓${RESET}" >&2
+    else
+        echo -e "  ${YELLOW}Some checks failed — run installer to fix${RESET}" >&2
+    fi
+    echo "" >&2
+
+    exit $exit_code
+}
+
+_check_mcp_json() {
+    local name="$1" file="$2" jq_path="$3"
+    if [ ! -f "$file" ]; then
+        echo -e "    ${DIM}—${RESET} ${name}: ${DIM}not configured (file not found)${RESET}" >&2
+        return 0
+    fi
+
+    if command -v jq &>/dev/null; then
+        if jq -e ".$jq_path" "$file" >/dev/null 2>&1; then
+            local cmd
+            cmd=$(jq -r ".$jq_path.command // empty" "$file" 2>/dev/null)
+            echo -e "    ${GREEN}✓${RESET} ${name}: ${CYAN}${cmd}${RESET}" >&2
+        else
+            echo -e "    ${RED}✗${RESET} ${name}: ${YELLOW}entry missing or misconfigured${RESET}" >&2
+            exit_code=1
+        fi
+    else
+        # Fallback: grep for the key
+        if grep -q "\"dcp\"" "$file" 2>/dev/null; then
+            echo -e "    ${GREEN}✓${RESET} ${name}: ${DIM}dcp entry found (jq not available for details)${RESET}" >&2
+        else
+            echo -e "    ${RED}✗${RESET} ${name}: ${YELLOW}dcp entry not found${RESET}" >&2
+            exit_code=1
+        fi
+    fi
+}
+
+_check_mcp_toml() {
+    local name="$1" file="$2" section="$3"
+    if [ ! -f "$file" ]; then
+        echo -e "    ${DIM}—${RESET} ${name}: ${DIM}not configured (file not found)${RESET}" >&2
+        return 0
+    fi
+
+    if grep -q "^\[${section}\]" "$file" 2>/dev/null; then
+        local cmd
+        cmd=$(grep -A1 "^\[${section}\]" "$file" | grep "^command = " | sed 's/command = //' | tr -d '"' | tr -d ' ')
+        echo -e "    ${GREEN}✓${RESET} ${name}: ${CYAN}${cmd}${RESET}" >&2
+    else
+        echo -e "    ${RED}✗${RESET} ${name}: ${YELLOW}[${section}] not found${RESET}" >&2
+        exit_code=1
+    fi
+}
+
+_check_claude_hooks() {
+    local file="$HOME/.claude/settings.json"
+    if [ ! -f "$file" ]; then
+        echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
+        return 0
+    fi
+
+    if command -v jq &>/dev/null; then
+        if jq -e '.hooks.PreToolUse[] | select(.hooks[]?.command | test("dcp-claude-hook"))' "$file" >/dev/null 2>&1; then
+            echo -e "    ${GREEN}✓${RESET} Claude Code: ${CYAN}PreToolUse + SessionStart${RESET}" >&2
+        elif jq -e '.hooks' "$file" >/dev/null 2>&1; then
+            echo -e "    ${YELLOW}!${RESET} Claude Code: ${YELLOW}hooks present but dcp-claude-hook not found${RESET}" >&2
+            exit_code=1
+        else
+            echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
+        fi
+    else
+        if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
+            echo -e "    ${GREEN}✓${RESET} Claude Code: ${CYAN}dcp-claude-hook found${RESET}" >&2
+        else
+            echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
+        fi
+    fi
+}
+
+_check_codex_hooks() {
+    local file="$HOME/.codex/config.toml"
+    if [ ! -f "$file" ]; then
+        echo -e "    ${DIM}—${RESET} Codex CLI hooks: ${DIM}not configured${RESET}" >&2
+        return 0
+    fi
+
+    if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
+        echo -e "    ${GREEN}✓${RESET} Codex CLI: ${CYAN}dcp-claude-hook configured${RESET}" >&2
+    else
+        echo -e "    ${DIM}—${RESET} Codex CLI hooks: ${DIM}not configured${RESET}" >&2
+    fi
+}
+
+_check_gemini_hooks() {
+    local file="$HOME/.gemini/settings.json"
+    if [ ! -f "$file" ]; then
+        echo -e "    ${DIM}—${RESET} Gemini CLI hooks: ${DIM}not configured${RESET}" >&2
+        return 0
+    fi
+
+    if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
+        echo -e "    ${GREEN}✓${RESET} Gemini CLI: ${CYAN}dcp-claude-hook configured${RESET}" >&2
+    else
+        echo -e "    ${DIM}—${RESET} Gemini CLI hooks: ${DIM}not configured${RESET}" >&2
+    fi
+}
+
+_check_amazonq_hooks() {
+    local file="$HOME/.aws/amazonq/mcp.json"
+    if [ ! -f "$file" ]; then
+        echo -e "    ${DIM}—${RESET} Amazon Q hooks: ${DIM}not configured${RESET}" >&2
+        return 0
+    fi
+
+    if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
+        echo -e "    ${GREEN}✓${RESET} Amazon Q: ${CYAN}dcp-claude-hook configured${RESET}" >&2
+    else
+        echo -e "    ${DIM}—${RESET} Amazon Q hooks: ${DIM}not configured${RESET}" >&2
+    fi
+}
 
 # ── Platform Detection ────────────────────────────────────────────────────────
 
@@ -748,6 +926,11 @@ main() {
     echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════${RESET}" >&2
 
     acquire_lock
+
+    if [ "$CHECK" -eq 1 ]; then
+        do_check
+    fi
+
     TMP=$(mktemp -d)
     mkdir -p "$DEST"
 
