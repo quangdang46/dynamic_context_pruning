@@ -35,15 +35,6 @@ dcp-notification   User-facing notification formatting and sending
 dcp-telemetry      Telemetry, metrics, observer hooks
 ```
 
-## Installation
-
-```bash
-# Linux/macOS (curl|bash)
-curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh?$(date +%s)" | bash
-
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.ps1 | iex
-```
 
 ## Quick Start
 
