@@ -1,6 +1,6 @@
 [package]
-name = "dcp-claude-hook"
-description = "Claude Code SessionStart hook binary for dynamic_context_pruning"
+name = "dcp-hook"
+description = "Unified hook binary for Claude Code and Codex CLI dynamic_context_pruning"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [[bin]]
-name = "dcp-claude-hook"
+name = "dcp-hook"
 path = "src/main.rs"
 
 [dependencies]

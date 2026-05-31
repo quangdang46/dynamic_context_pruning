@@ -248,7 +248,7 @@ crates/
 ├── dcp-notification/     # UI notification formatting ✅ NEW
 ├── dcp-mcp/              # MCP server binary
 ├── dcp-cli/              # CLI with subcommands (3/6 analytics done)
-├── dcp-claude-hook/      # Claude Code hook binary
+├── dcp-hook/      # Claude Code hook binary
 ├── dcp-rig/              # Rig adapter
 └── dynamic_context_pruning/  # Umbrella crate
 ```

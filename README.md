@@ -26,7 +26,7 @@ dcp-core           ContextPruner facade + orchestration (top-level entry point)
        ↑
        ├── dcp-mcp           MCP server binary (Model Context Protocol)
        ├── dcp-cli           CLI binary: stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress
-       ├── dcp-claude-hook   Claude Code SessionStart hook binary
+       ├── dcp-hook   Claude Code SessionStart hook binary
        └── dcp-rig           Rig framework adapter (test fixtures)
 
 dcp-permissions    Auth, host permissions, compress permission resolution
@@ -83,7 +83,7 @@ cargo run -p dcp-mcp
 | `dcp-core` | `crates/dcp-core` | `ContextPruner` facade and orchestration (primary entry point) |
 | `dcp-mcp` | `crates/dcp-mcp` | MCP server binary exposing DCP via Model Context Protocol |
 | `dcp-cli` | `crates/dcp-cli` | CLI binary with stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress commands (requires `--features scripts` for analytics commands) |
-| `dcp-claude-hook` | `crates/dcp-claude-hook` | Claude Code SessionStart hook binary |
+| `dcp-hook` | `crates/dcp-hook` | Claude Code SessionStart hook binary |
 | `dcp-rig` | `crates/dcp-rig` | Rig framework adapter (test fixtures) |
 | `dynamic_context_pruning` | `crates/dynamic_context_pruning` | Umbrella crate re-exporting all public types |
 

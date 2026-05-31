@@ -583,7 +583,7 @@ dynamic_context_pruning/                # repo root
 │   └── dynamic_context_pruning/        # umbrella crate (pub use everything)
 ├── adapters/                           # split out from crates/ because targets differ from the workspace
 │   ├── dcp-rig/                        # adapter for the rig framework
-│   └── dcp-claude-hook/                # binary for the Claude Code SessionStart hook
+│   └── dcp-hook/                # binary for the Claude Code SessionStart hook
 ├── bins/
 │   ├── dcp-cli/                        # interactive REPL / one-shot debugging
 │   └── dcp-mcp/                        # MCP server
@@ -1507,11 +1507,11 @@ fn messages_for_provider(&mut self) -> (Vec<Message>, Option<CompactionEvent>) {
 
 ### 9.2 Claude Code hook (binary)
 
-**Binary**: `dcp-claude-hook` from the `claude-hook` feature.
+**Binary**: `dcp-hook` from the `claude-hook` feature.
 
 **Install**:
 ```bash
-cargo install --path bins/dcp-claude-hook
+cargo install --path bins/dcp-hook
 # or:
 cargo install dynamic_context_pruning --features claude-hook
 ```
@@ -1524,14 +1524,14 @@ cargo install dynamic_context_pruning --features claude-hook
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/dcp-claude-hook"
+        "command": "$HOME/.cargo/bin/dcp-hook"
       }]
     }],
     "SessionStart": [{
       "matcher": "compact",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/dcp-claude-hook --on-compact"
+        "command": "$HOME/.cargo/bin/dcp-hook --on-compact"
       }]
     }]
   }
@@ -1685,7 +1685,7 @@ impl<M: CompletionModel> PrunedAgent<M> {
 
 - 🔲 `dcp-cli` interactive REPL
 - 🔲 `dcp-mcp` MCP server using rmcp
-- 🔲 `dcp-claude-hook` Claude Code hook
+- 🔲 `dcp-hook` Claude Code hook
 
 **Acceptance**: Each binary works standalone with an example session.
 

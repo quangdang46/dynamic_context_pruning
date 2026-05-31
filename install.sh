@@ -135,7 +135,7 @@ do_uninstall() {
     log_step "Uninstalling DCP..."
 
     # Remove binaries
-    for bin in dcp dcp-mcp dcp-claude-hook; do
+    for bin in dcp dcp-mcp dcp-hook; do
         if [ -f "$DEST/$bin" ]; then
             rm -f "$DEST/$bin"
             log_info "Removed $DEST/$bin"
@@ -159,7 +159,7 @@ do_uninstall() {
     if [ -f "$HOME/.codex/config.toml" ]; then
         local tmpf; tmpf="$(mktemp)"
         sed '/^\[mcp_servers\.dcp\]/,/^\[/{ /^\[mcp_servers\.dcp\]/d; /^\[/{p;d}; d }' "$HOME/.codex/config.toml" > "$tmpf" && mv "$tmpf" "$HOME/.codex/config.toml"
-        sed '/dcp-claude-hook/d' "$HOME/.codex/config.toml" > "$tmpf" && mv "$tmpf" "$HOME/.codex/config.toml"
+        sed '/dcp-hook/d' "$HOME/.codex/config.toml" > "$tmpf" && mv "$tmpf" "$HOME/.codex/config.toml"
         log_info "Removed DCP from Codex CLI config"
     fi
 
@@ -189,7 +189,7 @@ do_check() {
     # ── 1. Binary checks ──────────────────────────────────────────────────────
     echo -e "  ${BOLD}Binaries:${RESET}" >&2
 
-    for bin in dcp dcp-mcp dcp-claude-hook; do
+    for bin in dcp dcp-mcp dcp-hook; do
         local bin_path="$DEST/$bin"
         if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
             local ver
@@ -293,17 +293,17 @@ _check_claude_hooks() {
     fi
 
     if command -v jq &>/dev/null; then
-        if jq -e '.hooks.PreToolUse[] | select(.hooks[]?.command | test("dcp-claude-hook"))' "$file" >/dev/null 2>&1; then
+        if jq -e '.hooks.PreToolUse[] | select(.hooks[]?.command | test("dcp-hook"))' "$file" >/dev/null 2>&1; then
             echo -e "    ${GREEN}✓${RESET} Claude Code: ${CYAN}PreToolUse + SessionStart${RESET}" >&2
         elif jq -e '.hooks' "$file" >/dev/null 2>&1; then
-            echo -e "    ${YELLOW}!${RESET} Claude Code: ${YELLOW}hooks present but dcp-claude-hook not found${RESET}" >&2
+            echo -e "    ${YELLOW}!${RESET} Claude Code: ${YELLOW}hooks present but dcp-hook not found${RESET}" >&2
             exit_code=1
         else
             echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
         fi
     else
-        if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
-            echo -e "    ${GREEN}✓${RESET} Claude Code: ${CYAN}dcp-claude-hook found${RESET}" >&2
+        if grep -q "dcp-hook" "$file" 2>/dev/null; then
+            echo -e "    ${GREEN}✓${RESET} Claude Code: ${CYAN}dcp-hook found${RESET}" >&2
         else
             echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
         fi
@@ -317,8 +317,8 @@ _check_codex_hooks() {
         return 0
     fi
 
-    if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
-        echo -e "    ${GREEN}✓${RESET} Codex CLI: ${CYAN}dcp-claude-hook configured${RESET}" >&2
+    if grep -q "dcp-hook" "$file" 2>/dev/null; then
+        echo -e "    ${GREEN}✓${RESET} Codex CLI: ${CYAN}dcp-hook configured${RESET}" >&2
     else
         echo -e "    ${DIM}—${RESET} Codex CLI hooks: ${DIM}not configured${RESET}" >&2
     fi
@@ -331,8 +331,8 @@ _check_gemini_hooks() {
         return 0
     fi
 
-    if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
-        echo -e "    ${GREEN}✓${RESET} Gemini CLI: ${CYAN}dcp-claude-hook configured${RESET}" >&2
+    if grep -q "dcp-hook" "$file" 2>/dev/null; then
+        echo -e "    ${GREEN}✓${RESET} Gemini CLI: ${CYAN}dcp-hook configured${RESET}" >&2
     else
         echo -e "    ${DIM}—${RESET} Gemini CLI hooks: ${DIM}not configured${RESET}" >&2
     fi
@@ -345,8 +345,8 @@ _check_amazonq_hooks() {
         return 0
     fi
 
-    if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
-        echo -e "    ${GREEN}✓${RESET} Amazon Q: ${CYAN}dcp-claude-hook configured${RESET}" >&2
+    if grep -q "dcp-hook" "$file" 2>/dev/null; then
+        echo -e "    ${GREEN}✓${RESET} Amazon Q: ${CYAN}dcp-hook configured${RESET}" >&2
     else
         echo -e "    ${DIM}—${RESET} Amazon Q hooks: ${DIM}not configured${RESET}" >&2
     fi
@@ -424,10 +424,10 @@ install_binary_atomic() {
 build_from_source() {
     command -v cargo >/dev/null || die "cargo not found — install Rust: https://rustup.rs"
     git clone --depth 1 "https://github.com/${OWNER}/${REPO}.git" "$TMP/src"
-    for bin_name in dcp dcp-mcp dcp-claude-hook; do
+    for bin_name in dcp dcp-mcp dcp-hook; do
         local pkg="dcp-cli"
         [ "$bin_name" = "dcp-mcp" ] && pkg="dcp-mcp"
-        [ "$bin_name" = "dcp-claude-hook" ] && pkg="dcp-claude-hook"
+        [ "$bin_name" = "dcp-hook" ] && pkg="dcp-hook"
         (cd "$TMP/src" && CARGO_TARGET_DIR="$TMP/target" cargo build --release -p "$pkg" --bin "$bin_name") || true
         [ -f "$TMP/target/release/$bin_name" ] && install_binary_atomic "$TMP/target/release/$bin_name" "$DEST/$bin_name"
     done
@@ -442,7 +442,7 @@ download_all_binaries() {
     [ "${platform}" == windows* ] && ext="zip"
     local base_url="https://github.com/${OWNER}/${REPO}/releases/download/${VERSION}"
 
-    for bin_name in dcp dcp-mcp dcp-claude-hook; do
+    for bin_name in dcp dcp-mcp dcp-hook; do
         local url="${base_url}/${bin_name}-${target}.${ext}"
         local archive="${TMP}/${bin_name}.${ext}"
 
@@ -544,7 +544,7 @@ _remove_hooks_from_claude_settings() {
     [ -f "$file" ] || return 0
     command -v jq &>/dev/null || return 0
     local tmpf; tmpf="$(mktemp)"
-    jq 'del(.hooks.PreToolUse[] | select(.hooks[]?.command | test("dcp-claude-hook"))) // . | del(.hooks.SessionStart[] | select(.hooks[]?.command | test("dcp-claude-hook"))) // .' "$file" > "$tmpf" && mv "$tmpf" "$file"
+    jq 'del(.hooks.PreToolUse[] | select(.hooks[]?.command | test("dcp-hook"))) // . | del(.hooks.SessionStart[] | select(.hooks[]?.command | test("dcp-hook"))) // .' "$file" > "$tmpf" && mv "$tmpf" "$file"
 }
 
 # ── MCP Provider Configuration ───────────────────────────────────────────────
@@ -711,7 +711,7 @@ _toml_upsert_hooks() {
     [ -f "$file" ] || touch "$file"
 
     # Only add if not already present
-    if grep -q "dcp-claude-hook" "$file" 2>/dev/null; then
+    if grep -q "dcp-hook" "$file" 2>/dev/null; then
         return 0
     fi
 
@@ -752,7 +752,7 @@ configure_mcp_codex() {
 # ── Gemini CLI Hooks ──────────────────────────────────────────────────────────
 
 configure_gemini_hooks() {
-    local hook_binary="$DEST/dcp-claude-hook"
+    local hook_binary="$DEST/dcp-hook"
     [ -f "$hook_binary" ] || return 0
 
     local settings_file="$HOME/.gemini/settings.json"
@@ -805,7 +805,7 @@ EOJSON
 # ── Amazon Q Hooks ────────────────────────────────────────────────────────────
 
 configure_amazonq_hooks() {
-    local hook_binary="$DEST/dcp-claude-hook"
+    local hook_binary="$DEST/dcp-hook"
     [ -f "$hook_binary" ] || return 0
 
     local config_file="$HOME/.aws/amazonq/mcp.json"
@@ -841,7 +841,7 @@ EOJSON
 # ── Codex CLI Hooks ───────────────────────────────────────────────────────────
 
 configure_codex_hooks() {
-    local hook_binary="$DEST/dcp-claude-hook"
+    local hook_binary="$DEST/dcp-hook"
     [ -f "$hook_binary" ] || return 0
 
     local config_file="$HOME/.codex/config.toml"
@@ -856,8 +856,8 @@ configure_codex_hooks() {
 # ── Claude Code Hooks ─────────────────────────────────────────────────────────
 
 configure_claude_hooks() {
-    local hook_binary="$DEST/dcp-claude-hook"
-    [ -f "$hook_binary" ] || { log_warn "dcp-claude-hook not installed — skipping hook setup"; return; }
+    local hook_binary="$DEST/dcp-hook"
+    [ -f "$hook_binary" ] || { log_warn "dcp-hook not installed — skipping hook setup"; return; }
 
     log_step "Configuring Claude Code hooks..."
 

@@ -89,7 +89,7 @@ declare -A BEAD_FILES=(
 
     # === Integration/adapters ===
     ["djp"]="crates/dcp-cli/src/main.rs"
-    ["dm9"]="crates/dcp-claude-hook/src/main.rs crates/dcp-claude-hook/Cargo.toml"
+    ["dm9"]="crates/dcp-hook/src/main.rs crates/dcp-hook/Cargo.toml"
     ["n8c"]="crates/dcp-mcp/src/main.rs crates/dcp-mcp/Cargo.toml"
     ["dz6"]="crates/dcp-rig/src/lib.rs crates/dcp-rig/Cargo.toml"
 

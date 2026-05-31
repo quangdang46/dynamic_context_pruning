@@ -38,7 +38,7 @@ claude = ["dcp-core/claude-tokens", "dcp-tokens/claude-tokens"]
 
 # Optional integrations — placeholders. The wiring lands in the
 # corresponding adapter crate (`adapters/dcp-rig`,
-# `adapters/dcp-claude-hook`) and the optional MCP server (`bins/dcp-mcp`)
+# `adapters/dcp-hook`) and the optional MCP server (`bins/dcp-mcp`)
 # in a follow-up phase. Listing them here today keeps the public feature
 # surface stable so downstream callers can opt into the toggles without a
 # breaking change later.
