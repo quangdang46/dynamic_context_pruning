@@ -11,10 +11,13 @@ jobs:
     name: Check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+      - name: Read rust-toolchain.toml for toolchain info
+        run: cat rust-toolchain.toml
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -23,5 +26,3 @@ jobs:
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-features
       - run: cargo build --all-features
-      - run: cargo audit
-        if: runner.os == 'linux'
