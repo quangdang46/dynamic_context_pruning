@@ -18,7 +18,8 @@
 //! they exist in the session transcript file (transcript_path), which is not a
 //! stable interface for hooks.
 
-use std::io::{self, Read};
+use std::io::{self, Read, Write as IoWrite};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -26,6 +27,43 @@ use serde_json::Value as JsonValue;
 use dcp_config::Config;
 use dcp_core::ContextPruner;
 use dcp_types::{Message, Part, Role, ToolStatus};
+
+// ============================================================================
+// Logging
+// ============================================================================
+
+fn get_log_path() -> PathBuf {
+    if let Ok(home) = std::env::var("HOME") {
+        PathBuf::from(home).join(".dcp").join("hooks.log")
+    } else {
+        PathBuf::from(".dcp/hooks.log")
+    }
+}
+
+fn log_to_file(msg: &str) {
+    let log_path = get_log_path();
+    if let Some(parent) = log_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
+        let timestamp = chrono_lite_now();
+        let _ = writeln!(file, "[{}] {}", timestamp, msg);
+    }
+}
+
+fn chrono_lite_now() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let dur = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = dur.as_secs();
+    let millis = dur.subsec_millis();
+    format!("{}.{:03}", secs, millis)
+}
 
 // ============================================================================
 // Protocol Detection
@@ -378,63 +416,50 @@ fn main() -> anyhow::Result<()> {
     let opts = CliOptions::from_args();
     let debug = opts.debug || std::env::var("DCP_DEBUG").is_ok();
 
-    if debug {
-        eprintln!("[dcp-hook] Starting (debug={})", debug);
-    }
+    log_to_file(&format!("START debug={} opts={:?}", debug, opts));
 
     let mut input_buffer = String::new();
     let stdin = io::stdin();
     let mut stdin_lock = stdin.lock();
 
     if let Err(e) = stdin_lock.read_to_string(&mut input_buffer) {
-        eprintln!("[dcp-hook] ERROR: Failed to read stdin: {}", e);
+        log_to_file(&format!("ERROR: Failed to read stdin: {}", e));
         std::process::exit(1);
     }
 
     if input_buffer.trim().is_empty() {
-        if debug {
-            eprintln!("[dcp-hook] Empty stdin, exiting gracefully");
-        }
+        log_to_file("EXIT: empty stdin");
         std::process::exit(0);
     }
 
-    if debug {
-        eprintln!("[dcp-hook] Read {} bytes from stdin", input_buffer.len());
-    }
+    log_to_file(&format!("READ {} bytes", input_buffer.len()));
 
     let json_value: JsonValue = match serde_json::from_str(&input_buffer) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("[dcp-hook] ERROR: Failed to parse input JSON: {}", e);
+            log_to_file(&format!("ERROR: Failed to parse JSON: {}", e));
             println!("{{}}");
             std::process::exit(0);
         }
     };
 
     let protocol = detect_protocol(&json_value);
-
-    if debug {
-        eprintln!("[dcp-hook] Detected protocol: {:?}", protocol);
-    }
+    log_to_file(&format!("PROTOCOL: {:?}", protocol));
 
     let input: HookInput = match serde_json::from_str(&input_buffer) {
         Ok(inp) => inp,
         Err(e) => {
-            eprintln!("[dcp-hook] Failed to parse input: {}", e);
+            log_to_file(&format!("ERROR: Failed to parse input: {}", e));
             println!("{{}}");
             std::process::exit(0);
         }
     };
 
-    if debug {
-        let msg_count = input.messages.as_ref().map(|m| m.len()).unwrap_or(0);
-        eprintln!(
-            "[dcp-hook] Event: {}, tool_name: {:?}, messages: {}",
-            input.hook_event_name, input.tool_name, msg_count
-        );
-    }
+    let msg_count = input.messages.as_ref().map(|m| m.len()).unwrap_or(0);
+    log_to_file(&format!("EVENT: {} tool={:?} messages={}", input.hook_event_name, input.tool_name, msg_count));
 
     if opts.dry_run {
+        log_to_file("DRYRUN: echoing input");
         println!("{}", serde_json::to_string(&input).unwrap_or_default());
         std::process::exit(0);
     }
@@ -442,14 +467,14 @@ fn main() -> anyhow::Result<()> {
     // PreToolUse without messages - allow without transform
     // Codex docs: "Exit 0 with no output is treated as success and Codex continues"
     if input.hook_event_name == "PreToolUse" && input.messages.is_none() {
-        if debug {
-            eprintln!("[dcp-hook] PreToolUse without messages - allowing (exit 0)");
-        }
+        log_to_file("ALLOW: PreToolUse (no messages, exit 0)");
         std::process::exit(0);
     }
 
     let output = run_transform(&input);
-    println!("{}", serde_json::to_string(&output).unwrap_or_default());
+    let output_json = serde_json::to_string(&output).unwrap_or_default();
+    log_to_file(&format!("OUTPUT: {}", output_json));
+    println!("{}", output_json);
 
     std::process::exit(0);
 }
