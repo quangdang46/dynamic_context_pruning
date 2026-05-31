@@ -65,6 +65,28 @@ fn chrono_lite_now() -> String {
     format!("{}.{:03}", secs, millis)
 }
 
+fn log_hook_event(input: &HookInput, json_str: &str) {
+    let tool = input.tool_name.as_deref().unwrap_or("-");
+    let tool_input = input.tool_input.as_ref()
+        .map(|v| {
+            if let Some(cmd) = v.get("command").and_then(|c| c.as_str()) {
+                format!(" cmd={}", cmd.chars().take(60).collect::<String>())
+            } else {
+                String::new()
+            }
+        })
+        .unwrap_or_default();
+
+    log_to_file(&format!(
+        "hook {} | session={} | tool={}{} | bytes={} | exit=0",
+        input.hook_event_name,
+        input.session_id.as_deref().unwrap_or("-"),
+        tool,
+        tool_input,
+        json_str.len()
+    ));
+}
+
 // ============================================================================
 // Protocol Detection
 // ============================================================================
@@ -467,13 +489,13 @@ fn main() -> anyhow::Result<()> {
     // PreToolUse without messages - allow without transform
     // Codex docs: "Exit 0 with no output is treated as success and Codex continues"
     if input.hook_event_name == "PreToolUse" && input.messages.is_none() {
-        log_to_file("ALLOW: PreToolUse (no messages, exit 0)");
+        log_hook_event(&input, &input_buffer);
         std::process::exit(0);
     }
 
     let output = run_transform(&input);
     let output_json = serde_json::to_string(&output).unwrap_or_default();
-    log_to_file(&format!("OUTPUT: {}", output_json));
+    log_hook_event(&input, &output_json);
     println!("{}", output_json);
 
     std::process::exit(0);
