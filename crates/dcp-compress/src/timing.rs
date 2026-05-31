@@ -10,11 +10,7 @@
 /// * `started_at` - When the compression block was created (event_time in some contexts)
 /// * `event_time` - When the compression was triggered (current time on commit)
 /// * `part_time` - Partition time (0 if not yet partitioned)
-pub fn resolve_compression_duration(
-    started_at: i64,
-    event_time: i64,
-    part_time: i64,
-) -> i64 {
+pub fn resolve_compression_duration(started_at: i64, event_time: i64, part_time: i64) -> i64 {
     if started_at == 0 {
         return 0;
     }

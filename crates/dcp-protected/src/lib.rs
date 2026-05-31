@@ -76,10 +76,13 @@ impl ToolProtection {
         S: Into<String>,
     {
         let exact: HashSet<String> = names.into_iter().map(Into::into).collect();
-        Self { exact, glob_set: None }
+        Self {
+            exact,
+            glob_set: None,
+        }
     }
 
-/// New constructor: exact names + glob patterns.
+    /// New constructor: exact names + glob patterns.
     ///
     /// Use this when you need both exact matches and glob patterns.
     /// Glob patterns are compiled into a [`GlobSet`] for efficient matching.
@@ -112,13 +115,16 @@ impl ToolProtection {
             || self
                 .glob_set
                 .as_ref()
-                .map_or(false, |glob_set| glob_set.is_match(tool))
+                .is_some_and(|glob_set| glob_set.is_match(tool))
     }
 
     /// True when the protection set is empty.
     pub fn is_empty(&self) -> bool {
         self.exact.is_empty()
-            && self.glob_set.as_ref().map_or(true, |glob_set| glob_set.is_empty())
+            && self
+                .glob_set
+                .as_ref()
+                .is_some_and(|glob_set| glob_set.is_empty())
     }
 }
 
@@ -184,10 +190,7 @@ pub fn extract_file_paths(tool: &str, parameters: &Value) -> Vec<String> {
         "apply_patch" => {
             // Handle patchText field — Claude Code apply_patch format:
             // "*** Add File: path", "*** Update File: path", "*** Delete File: path"
-            if let Some(patch_text) = parameters
-                .get("patchText")
-                .and_then(|v| v.as_str())
-            {
+            if let Some(patch_text) = parameters.get("patchText").and_then(|v| v.as_str()) {
                 for line in patch_text.lines() {
                     if let Some(rest) = line.strip_prefix("*** Add File: ").or_else(|| {
                         line.strip_prefix("*** Update File: ")
@@ -202,9 +205,11 @@ pub fn extract_file_paths(tool: &str, parameters: &Value) -> Vec<String> {
             }
         }
         "multiedit" => {
-
             // Handle direct path field
-            if let Some(path) = parameters.get("path").or_else(|| parameters.get("filePath")) {
+            if let Some(path) = parameters
+                .get("path")
+                .or_else(|| parameters.get("filePath"))
+            {
                 if let Some(s) = path.as_str() {
                     paths.push(s.to_string());
                 }
@@ -223,7 +228,10 @@ pub fn extract_file_paths(tool: &str, parameters: &Value) -> Vec<String> {
         }
         _ => {
             // Default: try filePath field
-            if let Some(path) = parameters.get("filePath").or_else(|| parameters.get("path")) {
+            if let Some(path) = parameters
+                .get("filePath")
+                .or_else(|| parameters.get("path"))
+            {
                 if let Some(s) = path.as_str() {
                     paths.push(s.to_string());
                 }
@@ -281,10 +289,7 @@ mod tests {
 
     #[test]
     fn test_mixed_exact_and_glob() {
-        let tp = ToolProtection::new(
-            ["task".to_string()],
-            ["mcp*".to_string()],
-        );
+        let tp = ToolProtection::new(["task".to_string()], ["mcp*".to_string()]);
         assert!(tp.is_protected("task"));
         assert!(tp.is_protected("mcp__fs__read"));
         assert!(!tp.is_protected("ask"));

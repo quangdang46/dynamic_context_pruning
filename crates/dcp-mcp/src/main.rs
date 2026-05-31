@@ -22,8 +22,8 @@ use anyhow::Result;
 use dcp_compress::{CompressArgs, MessageEntry, RangeEntry};
 use dcp_config::Config;
 use dcp_core::ContextPruner;
-use dcp_notification::format::{format_stats_header, format_token_count};
 use dcp_notification::build_compress_visual_output;
+use dcp_notification::format::{format_stats_header, format_token_count};
 use dcp_types::BlockId;
 use rmcp::model::{
     Content, Implementation, InitializeResult, ListResourcesResult, ListToolsResult,
@@ -301,7 +301,8 @@ impl DcpMcpServer {
         match inner.pruner.handle_compress(args, &messages) {
             Ok(result) => {
                 let state = inner.pruner.state();
-                let visual = build_compress_visual_output(state, &result.blocks, &session_message_ids);
+                let visual =
+                    build_compress_visual_output(state, &result.blocks, &session_message_ids);
                 rmcp::model::CallToolResult::success(vec![Content::text(visual)])
             }
             Err(e) => rmcp::model::CallToolResult::error(vec![Content::text(format!(
@@ -351,9 +352,7 @@ impl DcpMcpServer {
                 let header = format_stats_header(state.stats.total_prune_tokens, 0);
                 let msg = format!(
                     "{}\n  ✓ Block {} restored — anchor: {}",
-                    header,
-                    result.block_id,
-                    result.anchor_message_id
+                    header, result.block_id, result.anchor_message_id
                 );
                 rmcp::model::CallToolResult::success(vec![Content::text(msg)])
             }
@@ -404,9 +403,7 @@ impl DcpMcpServer {
                 let header = format_stats_header(state.stats.total_prune_tokens, 0);
                 let msg = format!(
                     "{}\n  ↻ Block {} re-compressed — anchor: {}",
-                    header,
-                    result.block_id,
-                    result.anchor_message_id
+                    header, result.block_id, result.anchor_message_id
                 );
                 rmcp::model::CallToolResult::success(vec![Content::text(msg)])
             }
@@ -451,10 +448,7 @@ impl DcpMcpServer {
         }
 
         let state = inner.pruner.state().manual_mode.enabled;
-        let msg = format!(
-            "Manual mode: {}",
-            if state { "ACTIVE" } else { "INACTIVE" }
-        );
+        let msg = format!("Manual mode: {}", if state { "ACTIVE" } else { "INACTIVE" });
         rmcp::model::CallToolResult::success(vec![Content::text(msg)])
     }
 
@@ -522,7 +516,10 @@ Stats:
         let stats = inner.pruner.stats();
         let config = inner.pruner.config();
 
-        let total_saved = stats.total_prune_tokens.saturating_add(stats.compress_oversized as u64).saturating_add(stats.compress_useful as u64);
+        let total_saved = stats
+            .total_prune_tokens
+            .saturating_add(stats.compress_oversized as u64)
+            .saturating_add(stats.compress_useful as u64);
 
         let output = format!(
             "{}
@@ -600,10 +597,7 @@ Path Handling:
             ))]);
         }
 
-        let msg = format!(
-            "✓ Sweep triggered\n  {} prune decisions pending.",
-            _count
-        );
+        let msg = format!("✓ Sweep triggered\n  {} prune decisions pending.", _count);
         rmcp::model::CallToolResult::success(vec![Content::text(msg)])
     }
 }

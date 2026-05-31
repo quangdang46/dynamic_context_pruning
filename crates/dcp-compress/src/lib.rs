@@ -49,9 +49,9 @@ pub use placeholder::{
     validate_placeholders,
 };
 pub use resolve::{ResolvedRange, resolve_range};
+pub use timing::{build_compression_timing_key, resolve_compression_duration};
 pub use types::{CompressArgs, CompressResult, MessageEntry, NotificationEntry, RangeEntry};
 pub use validate::{validate_non_overlapping, validate_topic_and_content};
-pub use timing::{resolve_compression_duration, build_compression_timing_key};
 pub use wrap::{
     PROTECTED_USER_TRUNCATE_BYTES, append_protected_tool_outputs, append_protected_user_messages,
     compute_effective, compute_included, estimate_compressed_tokens, estimate_summary_tokens,

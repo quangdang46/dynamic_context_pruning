@@ -181,14 +181,14 @@ impl ContextPruner {
     }
 
     fn transform_messages_inner(
-&mut self,
+        &mut self,
         messages: Vec<Message>,
     ) -> Result<TransformResult, Error> {
         let mut pruned_tool_ids: Vec<String> = Vec::new();
 
         if !self.config.enabled {
             return Ok(TransformResult {
-                messages: messages,
+                messages,
                 removed_message_ids: Vec::new(),
                 pruned_tool_ids: Vec::new(),
                 tokens_saved: 0,
@@ -315,7 +315,6 @@ impl ContextPruner {
             changed: false,
         })
     }
-
 
     /// Append the system-prompt addendum (SPEC.md §6.6). The addendum
     /// renders the protected-tools block, the manual-mode note (if
@@ -560,7 +559,8 @@ impl ContextPruner {
                     Part::ToolCall { tool, input, .. } => {
                         total = total.saturating_add(tokenizer.count(tool) as u64);
                         total = total.saturating_add(
-                            tokenizer.count(&serde_json::to_string(input).unwrap_or_default()) as u64,
+                            tokenizer.count(&serde_json::to_string(input).unwrap_or_default())
+                                as u64,
                         );
                     }
                     Part::ToolResult { output, error, .. } => {

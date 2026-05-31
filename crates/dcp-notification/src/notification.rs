@@ -3,9 +3,9 @@
 //! Provides: send_unified_notification, send_compress_notification,
 //! build_compress_visual_output, CompressionNotificationEntry, PruneReason.
 
+use dcp_compress::NotificationEntry;
 use dcp_config::{Config, NotificationLevel};
 use dcp_state::SessionState;
-use dcp_compress::NotificationEntry;
 
 /// Error type for notification operations.
 #[derive(Debug, thiserror::Error)]
@@ -148,12 +148,7 @@ pub fn build_compress_visual_output(
         .map(|(id, entry)| (id.clone(), entry.tokens_saved))
         .collect();
 
-    let bar = format_progress_bar(
-        session_message_ids,
-        &active_pruned,
-        &newly_compressed,
-        50,
-    );
+    let bar = format_progress_bar(session_message_ids, &active_pruned, &newly_compressed, 50);
     lines.push(String::new());
     lines.push(bar);
 

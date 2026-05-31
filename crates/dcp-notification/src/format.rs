@@ -315,7 +315,9 @@ pub fn format_pruned_items_list(
 
     if unknown_count > 0 {
         let plural = if unknown_count > 1 { "s" } else { "" };
-        lines.push(format!("→ ({unknown_count} tool{plural} with unknown metadata)"));
+        lines.push(format!(
+            "→ ({unknown_count} tool{plural} with unknown metadata)"
+        ));
     }
 
     lines
@@ -354,8 +356,14 @@ mod tests {
     #[test]
     fn test_format_stats_header() {
         assert_eq!(format_stats_header(0, 0), "✂ DCP | -0 removed, +0 summary");
-        assert_eq!(format_stats_header(1500, 800), "✂ DCP | -1.5K removed, +800 summary");
-        assert_eq!(format_stats_header(2500, 100), "✂ DCP | -2.5K removed, +100 summary");
+        assert_eq!(
+            format_stats_header(1500, 800),
+            "✂ DCP | -1.5K removed, +800 summary"
+        );
+        assert_eq!(
+            format_stats_header(2500, 100),
+            "✂ DCP | -2.5K removed, +100 summary"
+        );
         assert_eq!(
             format_stats_header(100_000, 5000),
             "✂ DCP | -100K removed, +5K summary"
@@ -514,7 +522,10 @@ mod tests {
             "offset": 10,
             "limit": 5
         });
-        assert_eq!(extract_parameter_key("read", &params), "/src/lib.rs (lines 10-15)");
+        assert_eq!(
+            extract_parameter_key("read", &params),
+            "/src/lib.rs (lines 10-15)"
+        );
     }
 
     #[test]
@@ -523,7 +534,10 @@ mod tests {
             "filePath": "/src/lib.rs",
             "offset": 20
         });
-        assert_eq!(extract_parameter_key("read", &params), "/src/lib.rs (lines 20+)");
+        assert_eq!(
+            extract_parameter_key("read", &params),
+            "/src/lib.rs (lines 20+)"
+        );
     }
 
     #[test]
@@ -532,7 +546,10 @@ mod tests {
             "filePath": "/src/lib.rs",
             "limit": 10
         });
-        assert_eq!(extract_parameter_key("read", &params), "/src/lib.rs (lines 0-10)");
+        assert_eq!(
+            extract_parameter_key("read", &params),
+            "/src/lib.rs (lines 0-10)"
+        );
     }
 
     #[test]
@@ -583,7 +600,10 @@ mod tests {
             result.starts_with("3 files:"),
             "expected '3 files:' prefix, got: {result}"
         );
-        assert!(result.ends_with("..."), "expected trailing '...', got: {result}");
+        assert!(
+            result.ends_with("..."),
+            "expected trailing '...', got: {result}"
+        );
     }
 
     #[test]
@@ -595,13 +615,19 @@ mod tests {
     #[test]
     fn test_extract_parameter_key_list_default() {
         let params = serde_json::json!({});
-        assert_eq!(extract_parameter_key("list", &params), "(current directory)");
+        assert_eq!(
+            extract_parameter_key("list", &params),
+            "(current directory)"
+        );
     }
 
     #[test]
     fn test_extract_parameter_key_glob() {
         let params = serde_json::json!({ "pattern": "**/*.rs", "path": "/src" });
-        assert_eq!(extract_parameter_key("glob", &params), "\"**/*.rs\" in /src");
+        assert_eq!(
+            extract_parameter_key("glob", &params),
+            "\"**/*.rs\" in /src"
+        );
     }
 
     #[test]
@@ -619,7 +645,10 @@ mod tests {
     #[test]
     fn test_extract_parameter_key_grep() {
         let params = serde_json::json!({ "pattern": "fn main", "path": "/src" });
-        assert_eq!(extract_parameter_key("grep", &params), "\"fn main\" in /src");
+        assert_eq!(
+            extract_parameter_key("grep", &params),
+            "\"fn main\" in /src"
+        );
     }
 
     #[test]
@@ -651,13 +680,19 @@ mod tests {
     #[test]
     fn test_extract_parameter_key_webfetch() {
         let params = serde_json::json!({ "url": "https://example.com/api" });
-        assert_eq!(extract_parameter_key("webfetch", &params), "https://example.com/api");
+        assert_eq!(
+            extract_parameter_key("webfetch", &params),
+            "https://example.com/api"
+        );
     }
 
     #[test]
     fn test_extract_parameter_key_websearch() {
         let params = serde_json::json!({ "query": "rust programming" });
-        assert_eq!(extract_parameter_key("websearch", &params), "\"rust programming\"");
+        assert_eq!(
+            extract_parameter_key("websearch", &params),
+            "\"rust programming\""
+        );
     }
 
     #[test]
@@ -698,7 +733,10 @@ mod tests {
         let mut tool_metadata = HashMap::new();
         tool_metadata.insert(
             "c1".to_string(),
-            ("read".to_string(), serde_json::json!({ "filePath": "/src/lib.rs" })),
+            (
+                "read".to_string(),
+                serde_json::json!({ "filePath": "/src/lib.rs" }),
+            ),
         );
         let result = format_pruned_items_list(&["c1".to_string()], &tool_metadata, None);
         assert_eq!(result.len(), 1);
@@ -709,11 +747,8 @@ mod tests {
     #[test]
     fn test_format_pruned_items_list_unknown_tools() {
         let tool_metadata: HashMap<String, (String, serde_json::Value)> = HashMap::new();
-        let result = format_pruned_items_list(
-            &["c1".to_string(), "c2".to_string()],
-            &tool_metadata,
-            None,
-        );
+        let result =
+            format_pruned_items_list(&["c1".to_string(), "c2".to_string()], &tool_metadata, None);
         assert_eq!(result.len(), 1);
         assert!(result[0].contains("unknown metadata"));
     }
@@ -731,7 +766,10 @@ mod tests {
         let mut tool_metadata = HashMap::new();
         tool_metadata.insert(
             "c1".to_string(),
-            ("read".to_string(), serde_json::json!({ "filePath": "/src/lib.rs" })),
+            (
+                "read".to_string(),
+                serde_json::json!({ "filePath": "/src/lib.rs" }),
+            ),
         );
         let msg = format_pruning_result_for_tool(&["c1".to_string()], &tool_metadata, None);
         assert!(msg.contains("Context pruning complete"));

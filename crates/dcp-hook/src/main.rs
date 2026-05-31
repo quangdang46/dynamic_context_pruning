@@ -67,7 +67,9 @@ fn chrono_lite_now() -> String {
 
 fn log_hook_event(input: &HookInput, json_str: &str) {
     let tool = input.tool_name.as_deref().unwrap_or("-");
-    let tool_input = input.tool_input.as_ref()
+    let tool_input = input
+        .tool_input
+        .as_ref()
         .map(|v| {
             if let Some(cmd) = v.get("command").and_then(|c| c.as_str()) {
                 format!(" cmd={}", cmd.chars().take(60).collect::<String>())
@@ -170,7 +172,10 @@ pub struct HookSpecificOutput {
     pub hook_event_name: String,
     #[serde(rename = "permissionDecision", skip_serializing_if = "Option::is_none")]
     pub permission_decision: Option<String>,
-    #[serde(rename = "permissionDecisionReason", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "permissionDecisionReason",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub permission_decision_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_context: Option<String>,
@@ -277,10 +282,20 @@ fn parse_message_from_json(obj: &serde_json::Map<String, JsonValue>) -> Option<M
 
     if parts.is_empty() {
         if let Some(text) = obj.get("text").and_then(|t| t.as_str()) {
-            return Some(Message::new(id, role, vec![Part::Text(text.to_string())], time));
+            return Some(Message::new(
+                id,
+                role,
+                vec![Part::Text(text.to_string())],
+                time,
+            ));
         }
         if let Some(text) = obj.get("content").and_then(|c| c.as_str()) {
-            return Some(Message::new(id, role, vec![Part::Text(text.to_string())], time));
+            return Some(Message::new(
+                id,
+                role,
+                vec![Part::Text(text.to_string())],
+                time,
+            ));
         }
     }
 
@@ -338,8 +353,13 @@ fn message_to_json(msg: &Message) -> JsonValue {
 // Core Transform Logic
 // ============================================================================
 
-fn transform_messages(pruner: &mut ContextPruner, messages: Vec<Message>) -> Result<Vec<Message>, String> {
-    pruner.transform_messages(messages).map_err(|e| e.to_string())
+fn transform_messages(
+    pruner: &mut ContextPruner,
+    messages: Vec<Message>,
+) -> Result<Vec<Message>, String> {
+    pruner
+        .transform_messages(messages)
+        .map_err(|e| e.to_string())
 }
 
 fn run_transform(input: &HookInput) -> HookOutput {
@@ -478,7 +498,10 @@ fn main() -> anyhow::Result<()> {
     };
 
     let msg_count = input.messages.as_ref().map(|m| m.len()).unwrap_or(0);
-    log_to_file(&format!("EVENT: {} tool={:?} messages={}", input.hook_event_name, input.tool_name, msg_count));
+    log_to_file(&format!(
+        "EVENT: {} tool={:?} messages={}",
+        input.hook_event_name, input.tool_name, msg_count
+    ));
 
     if opts.dry_run {
         log_to_file("DRYRUN: echoing input");
