@@ -142,6 +142,23 @@ impl HookOutput {
     }
 
     pub fn allow(hook_event_name: &str) -> Self {
+        // For PreToolUse, only output hookSpecificOutput - no extra null fields
+        if hook_event_name == "PreToolUse" {
+            return Self {
+                hook_type: None,
+                session_id: None,
+                tool_name: None,
+                messages: None,
+                warning: None,
+                skipped: None,
+                hook_specific_output: Some(HookSpecificOutput {
+                    hook_event_name: hook_event_name.to_string(),
+                    permission_decision: Some("allow".to_string()),
+                    permission_decision_reason: None,
+                    additional_context: None,
+                }),
+            };
+        }
         Self {
             hook_type: None,
             session_id: None,
@@ -423,12 +440,11 @@ fn main() -> anyhow::Result<()> {
     }
 
     // PreToolUse without messages - allow without transform
+    // Codex docs: "Exit 0 with no output is treated as success and Codex continues"
     if input.hook_event_name == "PreToolUse" && input.messages.is_none() {
         if debug {
-            eprintln!("[dcp-hook] PreToolUse without messages - allowing");
+            eprintln!("[dcp-hook] PreToolUse without messages - allowing (exit 0)");
         }
-        let output = HookOutput::allow(&input.hook_event_name);
-        println!("{}", serde_json::to_string(&output).unwrap_or_default());
         std::process::exit(0);
     }
 
