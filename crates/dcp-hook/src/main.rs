@@ -106,10 +106,11 @@ pub struct HookOutput {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HookSpecificOutput {
+    #[serde(rename = "hookEventName")]
     pub hook_event_name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "permissionDecision", skip_serializing_if = "Option::is_none")]
     pub permission_decision: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "permissionDecisionReason", skip_serializing_if = "Option::is_none")]
     pub permission_decision_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_context: Option<String>,
