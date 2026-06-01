@@ -6,6 +6,7 @@ on:
     branches: [main]
 env:
   CARGO_TERM_COLOR: always
+  RUST_TEST_THREADS: "2"
 jobs:
   check:
     name: Check (${{ matrix.os }})
@@ -17,6 +18,9 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+      - name: Enable long paths
+        if: matrix.os == 'windows-latest'
+        run: git config --global core.longpaths true
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
