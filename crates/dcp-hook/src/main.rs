@@ -33,11 +33,10 @@ use dcp_types::{Message, Part, Role, ToolStatus};
 // ============================================================================
 
 fn get_log_path() -> PathBuf {
-    if let Ok(home) = std::env::var("HOME") {
-        PathBuf::from(home).join(".dcp").join("hooks.log")
-    } else {
-        PathBuf::from(".dcp/hooks.log")
-    }
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| String::from("."));
+    PathBuf::from(home).join(".dcp").join("hooks.log")
 }
 
 fn log_to_file(msg: &str) {

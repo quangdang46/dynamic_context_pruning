@@ -70,7 +70,9 @@ use rusqlite::{Connection, params};
 
 /// Directory where opencode stores its data on Linux/macOS.
 fn default_opencode_db_path() -> std::path::PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| "~".to_string());
     let mut path = std::path::PathBuf::from(home);
     path.push(".local");
     path.push("share");
