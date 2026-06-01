@@ -345,7 +345,7 @@ mod tests {
         let empty = bar.chars().filter(|&c| c == EMPTY_CHAR).count();
         assert_eq!(filled + empty, BAR_WIDTH);
         // Should be approximately half
-        assert!(filled >= 8 && filled <= 12);
+        assert!((8..=12).contains(&filled));
     }
 
     #[test]
