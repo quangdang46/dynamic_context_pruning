@@ -124,7 +124,7 @@ impl ToolProtection {
             && self
                 .glob_set
                 .as_ref()
-                .is_some_and(|glob_set| glob_set.is_empty())
+                .map_or(true, |glob_set| glob_set.is_empty())
     }
 }
 

@@ -1,6 +1,20 @@
+<div align="center">
+
 # dynamic_context_pruning
 
-Dynamic context pruning for LLM coding agents. Reduces token usage through deterministic strategies (deduplication, error purging, stale file read removal) and an LLM-driven compression tool, while keeping prompt caches stable.
+**Deterministic and LLM-driven context pruning for LLM coding agents.**
+
+[![License: MIT](https://img.shields.io/github/license/quangdang46/dynamic_context_pruning?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/blob/main/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/quangdang46/dynamic_context_pruning/ci.yml?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/actions)
+[![GitHub Stars](https://img.shields.io/github/stars/quangdang46/dynamic_context_pruning?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/stargazers)
+
+</div>
+
+## What is this?
+
+Dynamic Context Pruning (DCP) reduces token usage in LLM coding agent sessions through a combination of **deterministic strategies** (deduplication, error purging, stale file read removal) and **LLM-driven compression**. It manages session state, tracks compression blocks for cache stability, and exposes pruning capabilities via CLI, MCP, and Claude Code hooks.
+
+Built as a modular Rust workspace with 21 crates — each responsible for a distinct capability (token counting, persistence, configuration cascading, telemetry, permissions, notifications, and more).
 
 ## Architecture
 
@@ -26,7 +40,7 @@ dcp-core           ContextPruner facade + orchestration (top-level entry point)
        ↑
        ├── dcp-mcp           MCP server binary (Model Context Protocol)
        ├── dcp-cli           CLI binary: stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress
-       ├── dcp-hook   Claude Code SessionStart hook binary
+       ├── dcp-hook          Claude Code SessionStart hook binary
        └── dcp-rig           Rig framework adapter (test fixtures)
 
 dcp-permissions    Auth, host permissions, compress permission resolution
@@ -34,7 +48,6 @@ dcp-messages       Message query, shape, sync, priority, injection, subagents, r
 dcp-notification   User-facing notification formatting and sending
 dcp-telemetry      Telemetry, metrics, observer hooks
 ```
-
 
 ## Quick Start
 
@@ -82,10 +95,10 @@ cargo run -p dcp-mcp
 
 Config cascades through 4 levels (later wins per key, arrays replace wholesale):
 
-1. Built-in defaults (compiled in)
-2. Global: `$XDG_CONFIG_HOME/dynamic_context_pruning/config.jsonc` (`~/.config/...` fallback)
-3. Custom: `$DCP_CONFIG_DIR/config.jsonc` if env var set
-4. Project: `.dynamic_context_pruning/config.jsonc` in working directory or ancestor
+1. **Built-in defaults** — compiled into the binary
+2. **Global** — `$XDG_CONFIG_HOME/dynamic_context_pruning/config.jsonc` (`~/.config/...` fallback)
+3. **Custom** — `$DCP_CONFIG_DIR/config.jsonc` (if env var is set)
+4. **Project** — `.dynamic_context_pruning/config.jsonc` in working directory or ancestor
 
 ### Key Config Options
 
@@ -189,12 +202,28 @@ cargo test -p dcp-cli -- stats_args_parsing
 
 ### Test Categories
 
-- **Unit tests**: each crate has inline `#[cfg(test)]` modules
-- **Property tests**: `dcp-state` uses `proptest` for state machine property testing
-- **Snapshot tests**: `insta` for serialized output regression testing
-- **Integration tests**: `tests/smoke.rs` at workspace root
-- **Examples**: `examples/01_minimal.rs` through `examples/06_cache_stability.rs`
+- **Unit tests** — each crate has inline `#[cfg(test)]` modules
+- **Property tests** — `dcp-state` uses `proptest` for state machine property testing
+- **Snapshot tests** — `insta` for serialized output regression testing
+- **Integration tests** — `tests/smoke.rs` at workspace root
+- **Examples** — `examples/01_minimal.rs` through `examples/06_cache_stability.rs`
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contribution guide — including build steps, pre-commit hooks, coding standards, and the PR process.
+
+<a href="https://github.com/quangdang46/dynamic_context_pruning/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=quangdang46/dynamic_context_pruning" />
+</a>
 
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+---
+
+<div align="center">
+
+[![Star History Chart](https://api.star-history.com/svg?repos=quangdang46/dynamic_context_pruning&type=Date)](https://star-history.com/#quangdang46/dynamic_context_pruning&Date)
+
+</div>
