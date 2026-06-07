@@ -16,7 +16,9 @@
 //! the `.json` extension are considered — stray `.tmp.*` siblings are
 //! ignored.
 
-use std::fs::{self, File, OpenOptions};
+#[cfg(unix)]
+use std::fs::File;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
