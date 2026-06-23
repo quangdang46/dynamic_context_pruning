@@ -1,0 +1,33 @@
+{
+  "name": "@quangdang46/opencode-dcp-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "napi": {
+    "name": "opencode-dcp-bridge",
+    "triples": {
+      "defaults": true
+    }
+  },
+  "scripts": {
+    "build": "cd .. && cargo build -p opencode-dcp-bridge && cp target/debug/libopencode_dcp_bridge.* opencode-dcp-plugin/",
+    "build:release": "cd .. && cargo build --release -p opencode-dcp-bridge && cp target/release/libopencode_dcp_bridge.* opencode-dcp-plugin/",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.4.3"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.17.9",
+    "typescript": "^5.0.0",
+    "zod": "^3.23.0"
+  },
+  "files": [
+    "dist/",
+    "*.node",
+    "npm/",
+    "README.md"
+  ]
+}

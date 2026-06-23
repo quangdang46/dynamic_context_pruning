@@ -19,6 +19,7 @@ members = [
     "crates/dcp-permissions",
     "crates/dcp-messages",
     "crates/dcp-notification",
+    "crates/opencode-dcp-bridge",
     "crates/dynamic_context_pruning",
 ]
 default-members = [".", "crates/dynamic_context_pruning"]

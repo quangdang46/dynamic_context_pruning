@@ -12,3 +12,5 @@ __pycache__/
 .direnv/
 .omo/
 .ntm/
+package/
+*.tgz
