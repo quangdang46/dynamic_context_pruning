@@ -1,5 +1,12 @@
 import type { Plugin, PluginModule, PluginInput } from "@opencode-ai/plugin"
 import { createTools } from "./tools.js"
+import { createRequire } from "module"
+import { fileURLToPath } from "url"
+import { dirname, resolve, join } from "path"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const _require = createRequire(import.meta.url)
 
 interface DcpPruner {
   transformMessages(messagesJson: string): string
@@ -18,30 +25,31 @@ interface BridgeExports {
 }
 
 function loadBridge(): BridgeExports {
+  const root = resolve(__dirname, "..")
   const candidates = [
-    "opencode-dcp-bridge.darwin-arm64.node",
-    "opencode-dcp-bridge.darwin-x64.node",
-    "opencode-dcp-bridge.linux-x64-gnu.node",
-    "opencode-dcp-bridge.win32-x64-msvc.node",
-    "opencode-dcp-bridge.node",
+    join(root, "opencode-dcp-bridge.darwin-arm64.node"),
+    join(root, "opencode-dcp-bridge.darwin-x64.node"),
+    join(root, "opencode-dcp-bridge.linux-x64-gnu.node"),
+    join(root, "opencode-dcp-bridge.win32-x64-msvc.node"),
+    join(root, "opencode-dcp-bridge.node"),
   ]
   for (const name of candidates) {
     try {
-      return require(name) as BridgeExports
+      return _require(name) as BridgeExports
     } catch {
       /* try next */
     }
   }
   throw new Error(
-    "Cannot load opencode-dcp-bridge native addon. " +
-    "Build it first: cd crates/opencode-dcp-bridge && cargo build"
+    "Cannot load opencode-dcp-bridge native addon.\n" +
+    "Build: cd ~/Projects/dynamic_context_pruning && cargo build -p opencode-dcp-bridge"
   )
 }
 
 const createPlugin: Plugin = async (_ctx: PluginInput) => {
-  const bridge = loadBridge()
-  const configJson = bridge.loadDcpConfig()
-  const pruner: DcpPruner = new bridge.DcpPruner(configJson)
+  const nativeBridge = loadBridge()
+  const configJson = nativeBridge.loadDcpConfig()
+  const pruner: DcpPruner = new nativeBridge.DcpPruner(configJson)
 
   return {
     "experimental.chat.messages.transform": async (_input, output) => {

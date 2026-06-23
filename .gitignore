@@ -14,3 +14,11 @@ __pycache__/
 .ntm/
 package/
 *.tgz
+
+# OpenCode DCP plugin
+opencode-dcp-plugin/node_modules/
+opencode-dcp-plugin/dist/
+opencode-dcp-plugin/*.node
+opencode-dcp-plugin/package-lock.json
+package-lock.json
+test_bridge.js

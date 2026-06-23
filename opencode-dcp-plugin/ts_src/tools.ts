@@ -1,4 +1,4 @@
-import { tool } from "@opencode-ai/plugin"
+import { tool, type ToolDefinition } from "@opencode-ai/plugin"
 
 interface DcpPruner {
   transformMessages(messagesJson: string): string
@@ -11,7 +11,7 @@ interface DcpPruner {
   setSessionId(sessionId: string): void
 }
 
-export function createTools(pruner: DcpPruner) {
+export function createTools(pruner: DcpPruner): Record<string, ToolDefinition> {
   return {
     compress: tool({
       description:
