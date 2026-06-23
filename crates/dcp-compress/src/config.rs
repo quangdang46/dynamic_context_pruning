@@ -34,6 +34,21 @@ pub trait CompressConfig {
     fn show_compression(&self) -> bool {
         true
     }
+
+    /// Whether `<dcp-protected>…</dcp-protected>` tags in message text
+    /// are preserved verbatim across compression
+    /// (`compress.protectTags`).
+    fn protect_tags(&self) -> bool {
+        false
+    }
+
+    /// Whether summaries are buffered through the prompt-engineering
+    /// append step (`compress.summaryBuffer`). When `false`, the outer
+    /// `<dcp-summary>…</dcp-summary>` wrapping is stripped before
+    /// committing the block.
+    fn summary_buffer(&self) -> bool {
+        true
+    }
 }
 
 /// Plain-data implementation suitable for tests and short-lived
@@ -48,6 +63,10 @@ pub struct StaticCompressConfig {
     pub protect_user_messages: bool,
     /// `compress.showCompression`.
     pub show_compression: bool,
+    /// `compress.protectTags`.
+    pub protect_tags: bool,
+    /// `compress.summaryBuffer`.
+    pub summary_buffer: bool,
 }
 
 impl StaticCompressConfig {
@@ -58,6 +77,8 @@ impl StaticCompressConfig {
             protected_tools: ToolProtection::new_exact(["task", "skill"]),
             protect_user_messages: false,
             show_compression: true,
+            protect_tags: false,
+            summary_buffer: true,
         }
     }
 }
@@ -79,6 +100,12 @@ impl CompressConfig for StaticCompressConfig {
     fn show_compression(&self) -> bool {
         self.show_compression
     }
+    fn protect_tags(&self) -> bool {
+        self.protect_tags
+    }
+    fn summary_buffer(&self) -> bool {
+        self.summary_buffer
+    }
 }
 
 #[cfg(test)]
@@ -93,6 +120,8 @@ mod tests {
         assert!(c.protected_tools().is_protected("skill"));
         assert!(!c.protect_user_messages());
         assert!(c.show_compression());
+        assert!(!c.protect_tags());
+        assert!(c.summary_buffer());
     }
 
     #[test]

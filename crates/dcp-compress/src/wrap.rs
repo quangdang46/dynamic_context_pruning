@@ -110,6 +110,92 @@ pub fn append_protected_tool_outputs<C: CompressConfig + ?Sized>(
     out
 }
 
+/// Append `<dcp-protected-tags>…</dcp-protected-tags>` for every
+/// `<dcp-protected>…</dcp-protected>` section found in message text of
+/// the selected range, gated by `config.protect_tags()` (Gap 2).
+pub fn append_protected_tag_content<C: CompressConfig + ?Sized>(
+    summary: &str,
+    plan: &ResolvedRange,
+    messages: &[Message],
+    config: &C,
+) -> String {
+    if !config.protect_tags() {
+        return summary.to_string();
+    }
+    let mut bodies: Vec<String> = Vec::new();
+    for idx in &plan.selection_indices {
+        let msg = &messages[*idx];
+        for part in &msg.parts {
+            if let Part::Text(t) = part {
+                bodies.extend(extract_protected_tag_sections(t));
+            }
+        }
+    }
+    if bodies.is_empty() {
+        return summary.to_string();
+    }
+    let mut out = summary.to_string();
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out.push_str("<dcp-protected-tags>\n");
+    for body in bodies {
+        out.push_str(&body);
+        out.push('\n');
+    }
+    out.push_str("</dcp-protected-tags>");
+    out
+}
+
+/// Extract sections enclosed in `<dcp-protected>…</dcp-protected>` tags
+/// and return the inner content of each section found (Gap 2:
+/// protectTags).
+///
+/// Sections **must not** be nested. Only the outermost pair is matched
+/// per occurrence. The tag markers are case-sensitive.
+pub fn extract_protected_tag_sections(text: &str) -> Vec<String> {
+    const OPEN: &str = "<dcp-protected>";
+    const CLOSE: &str = "</dcp-protected>";
+    let mut sections = Vec::new();
+    let mut remaining = text;
+    while let Some(start) = remaining.find(OPEN) {
+        let after_open = start + OPEN.len();
+        let Some(end) = remaining[after_open..].find(CLOSE) else {
+            break;
+        };
+        let inner = &remaining[after_open..after_open + end];
+        sections.push(inner.to_string());
+        remaining = &remaining[after_open + end + CLOSE.len()..];
+    }
+    sections
+}
+
+/// When `config.summary_buffer()` is `false`, strip the outer
+/// `<dcp-summary>…</dcp-summary>` wrapping from `inner` before
+/// committing (Gap 3: summaryBuffer).
+///
+/// When `true`, return `inner` unchanged so the prompt-engineering
+/// append step sees the buffered form.
+pub fn maybe_buffer_summary<C: CompressConfig + ?Sized>(
+    inner: &str,
+    config: &C,
+) -> String {
+    if config.summary_buffer() {
+        return inner.to_string();
+    }
+    // Strip the outer <dcp-summary> / </dcp-summary> if present.
+    const OSUM: &str = "<dcp-summary>";
+    const CSUM: &str = "</dcp-summary>";
+    let s = inner.trim();
+    if s.starts_with(OSUM) && s.ends_with(CSUM) {
+        let start = OSUM.len();
+        let end = s.len() - CSUM.len();
+        s[start..end].trim().to_string()
+    } else {
+        inner.to_string()
+    }
+}
+
 /// Wrap an expanded summary into the canonical
 /// `<dcp-block id="b<N>" topic="…">…</dcp-block>` form (SPEC §6.3.3).
 ///
@@ -434,6 +520,111 @@ mod tests {
         let included = compute_included(&[BlockId::new(1)], &blocks);
         // Order: [1, 99] (1 from direct consumed list, 99 from transitive).
         assert_eq!(included, vec![BlockId::new(1), BlockId::new(99)]);
+    }
+
+    // ── Gap 2: protect_tags ────────────────────────────────────────
+
+    #[test]
+    fn extract_protected_tag_sections_returns_inner_content() {
+        let text = "before <dcp-protected>inner text</dcp-protected> after";
+        let sections = extract_protected_tag_sections(text);
+        assert_eq!(sections, vec!["inner text"]);
+    }
+
+    #[test]
+    fn extract_protected_tag_sections_multiple() {
+        let text =
+            "<dcp-protected>first</dcp-protected> middle <dcp-protected>second</dcp-protected>";
+        let sections = extract_protected_tag_sections(text);
+        assert_eq!(sections, vec!["first", "second"]);
+    }
+
+    #[test]
+    fn extract_protected_tag_sections_no_match() {
+        let text = "just text without tags";
+        let sections = extract_protected_tag_sections(text);
+        assert!(sections.is_empty());
+    }
+
+    #[test]
+    fn extract_protected_tag_sections_unclosed_tag() {
+        // An opening tag without a matching closer should silently stop
+        // at the open tag and return what was found before it.
+        let text = "<dcp-protected>opened but never closed";
+        let sections = extract_protected_tag_sections(text);
+        assert!(sections.is_empty());
+    }
+
+    #[test]
+    fn append_protected_tag_content_disabled_by_default() {
+        let cfg = StaticCompressConfig::defaults();
+        let messages = vec![Message::user_text("u1", 0, "<dcp-protected>secret</dcp-protected>")];
+        let plan = ResolvedRange {
+            start_raw: "u1".into(),
+            end_raw: "u1".into(),
+            selection_indices: vec![0],
+            required_block_ids: vec![],
+            anchor_message_id: "u1".into(),
+            direct_message_ids: vec!["u1".into()],
+            direct_tool_ids: vec![],
+        };
+        let out = append_protected_tag_content("base", &plan, &messages, &cfg);
+        assert_eq!(out, "base");
+    }
+
+    #[test]
+    fn append_protected_tag_content_appends_when_enabled() {
+        let cfg = StaticCompressConfig {
+            protect_tags: true,
+            ..StaticCompressConfig::defaults()
+        };
+        let messages =
+            vec![Message::user_text("u1", 0, "before <dcp-protected>secret</dcp-protected> after")];
+        let plan = ResolvedRange {
+            start_raw: "u1".into(),
+            end_raw: "u1".into(),
+            selection_indices: vec![0],
+            required_block_ids: vec![],
+            anchor_message_id: "u1".into(),
+            direct_message_ids: vec!["u1".into()],
+            direct_tool_ids: vec![],
+        };
+        let out = append_protected_tag_content("base", &plan, &messages, &cfg);
+        assert!(out.contains("<dcp-protected-tags>"));
+        assert!(out.contains("secret"));
+        assert!(out.contains("</dcp-protected-tags>"));
+    }
+
+    // ── Gap 3: summary_buffer ──────────────────────────────────────
+
+    #[test]
+    fn maybe_buffer_summary_passes_through_when_buffered() {
+        let cfg = StaticCompressConfig::defaults(); // summary_buffer defaults to true
+        let input = "<dcp-summary>\nhello\n</dcp-summary>";
+        let out = maybe_buffer_summary(input, &cfg);
+        assert_eq!(out, input);
+    }
+
+    #[test]
+    fn maybe_buffer_summary_strips_wrapping_when_not_buffered() {
+        let cfg = StaticCompressConfig {
+            summary_buffer: false,
+            ..StaticCompressConfig::defaults()
+        };
+        let input = "<dcp-summary>\nhello\n</dcp-summary>";
+        let out = maybe_buffer_summary(input, &cfg);
+        assert_eq!(out, "hello");
+    }
+
+    #[test]
+    fn maybe_buffer_summary_non_wrapped_content_passes_through() {
+        let cfg = StaticCompressConfig {
+            summary_buffer: false,
+            ..StaticCompressConfig::defaults()
+        };
+        let input = "just plain text";
+        let out = maybe_buffer_summary(input, &cfg);
+        assert_eq!(out, input);
     }
 
     #[test]

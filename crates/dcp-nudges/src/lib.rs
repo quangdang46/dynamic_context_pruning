@@ -99,27 +99,29 @@ impl NudgeKind {
 
 /// How rendered nudge text is glued into a message's primary text part.
 ///
-/// The default ([`InjectionMode::Append`]) preserves cache stability for
-/// the leading prefix of the existing content; [`InjectionMode::Prepend`]
-/// is provided for hosts that want the nudge to appear before the
-/// message body; [`InjectionMode::Replace`] swaps the body entirely.
+/// SPEC.md §8 describes two modes:
+///
+/// * `WrapBlock` (default) — wrap the nudge in `<dcp-nudge kind="…">`
+///   `… </dcp-nudge>` XML tags and append after the existing body.
+/// * `AppendText` — append the raw nudge text after the existing body.
+///
+/// Both modes fall back to creating a fresh `Part::Text` when the anchor
+/// message has no text part.
 ///
 /// # Example
 ///
 /// ```rust
 /// use dcp_nudges::InjectionMode;
-/// assert_eq!(InjectionMode::default(), InjectionMode::Append);
+/// assert_eq!(InjectionMode::default(), InjectionMode::WrapBlock);
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum InjectionMode {
-    /// Replace the message's primary text part with the rendered nudge.
-    Replace,
-    /// Append the rendered nudge after the existing primary text.
+    /// Wrap the nudge in `<dcp-nudge kind="…"> … </dcp-nudge>` and
+    /// append after the existing body. Default.
     #[default]
-    Append,
-    /// Prepend the rendered nudge before the existing primary text.
-    Prepend,
+    WrapBlock,
+    /// Append the raw nudge text after the existing body.
+    AppendText,
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -144,7 +146,7 @@ pub enum InjectionMode {
 ///     iteration_nudge_threshold: 10,
 ///     ..NudgeConfig::default()
 /// };
-/// assert_eq!(cfg.injection_mode, InjectionMode::Append);
+/// assert_eq!(cfg.injection_mode, InjectionMode::WrapBlock);
 /// assert_eq!(cfg.nudge_force, NudgeForce::Soft);
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -648,23 +650,24 @@ fn apply_to_text_part(msg: &mut Message, text: &str, mode: InjectionMode) {
         _ => None,
     }) {
         match mode {
-            InjectionMode::Replace => {
-                *part = trimmed.to_string();
+            InjectionMode::WrapBlock => {
+                // Wrap the nudge in `<dcp-nudge>` tags per SPEC.md §8.
+                let tagged = format!(
+                    "<dcp-nudge kind=\"nudge\">\n{trimmed}\n</dcp-nudge>"
+                );
+                if part.is_empty() {
+                    *part = tagged;
+                } else {
+                    part.push_str("\n\n");
+                    part.push_str(&tagged);
+                }
             }
-            InjectionMode::Append => {
+            InjectionMode::AppendText => {
                 if part.is_empty() {
                     *part = trimmed.to_string();
                 } else {
                     part.push_str("\n\n");
                     part.push_str(trimmed);
-                }
-            }
-            InjectionMode::Prepend => {
-                if part.is_empty() {
-                    *part = trimmed.to_string();
-                } else {
-                    let body = std::mem::take(part);
-                    *part = format!("{trimmed}\n\n{body}");
                 }
             }
         }
@@ -824,7 +827,7 @@ mod tests {
     #[test]
     fn nudge_config_defaults_match_spec() {
         let cfg = NudgeConfig::default();
-        assert_eq!(cfg.injection_mode, InjectionMode::Append);
+        assert_eq!(cfg.injection_mode, InjectionMode::WrapBlock);
         assert_eq!(cfg.nudge_frequency, 5);
         assert_eq!(cfg.iteration_nudge_threshold, 15);
         assert_eq!(cfg.nudge_force, NudgeForce::Soft);
@@ -1168,10 +1171,10 @@ mod tests {
     // ----- inject_nudges: modes -----
 
     #[test]
-    fn inject_nudges_append_mode_appends_to_existing_text() {
+    fn inject_nudges_append_text_mode_appends_to_existing_text() {
         let mut state = SessionState::default();
         let cfg = NudgeConfig {
-            injection_mode: InjectionMode::Append,
+            injection_mode: InjectionMode::AppendText,
             ..NudgeConfig::default()
         };
         let mut messages = vec![asst("a1", "original")];
@@ -1190,15 +1193,15 @@ mod tests {
     }
 
     #[test]
-    fn inject_nudges_prepend_mode_prepends_to_existing_text() {
+    fn inject_nudges_wrap_block_wraps_in_dcp_nudge_tag() {
         let mut state = SessionState::default();
         let cfg = NudgeConfig {
-            injection_mode: InjectionMode::Prepend,
+            injection_mode: InjectionMode::WrapBlock,
             ..NudgeConfig::default()
         };
         let mut messages = vec![asst("a1", "body")];
         let prompts = Prompts {
-            turn_nudge: "TOP".into(),
+            turn_nudge: "NUDGE_TEXT".into(),
             ..Prompts::default()
         };
         let mut priorities = HashMap::new();
@@ -1206,35 +1209,18 @@ mod tests {
 
         inject_nudges(&mut state, &cfg, &mut messages, &prompts, &priorities);
         match &messages[0].parts[0] {
-            Part::Text(t) => assert_eq!(t, "TOP\n\nbody"),
+            Part::Text(t) => {
+                assert!(t.contains("body"));
+                assert!(t.contains("<dcp-nudge kind=\"nudge\">"));
+                assert!(t.contains("NUDGE_TEXT"));
+                assert!(t.contains("</dcp-nudge>"));
+            }
             other => panic!("unexpected: {other:?}"),
         }
     }
 
     #[test]
-    fn inject_nudges_replace_mode_replaces_text() {
-        let mut state = SessionState::default();
-        let cfg = NudgeConfig {
-            injection_mode: InjectionMode::Replace,
-            ..NudgeConfig::default()
-        };
-        let mut messages = vec![asst("a1", "old")];
-        let prompts = Prompts {
-            turn_nudge: "NEW".into(),
-            ..Prompts::default()
-        };
-        let mut priorities = HashMap::new();
-        priorities.insert("a1".into(), NudgeKind::Turn);
-
-        inject_nudges(&mut state, &cfg, &mut messages, &prompts, &priorities);
-        match &messages[0].parts[0] {
-            Part::Text(t) => assert_eq!(t, "NEW"),
-            other => panic!("unexpected: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn inject_nudges_creates_text_part_when_missing() {
+    fn inject_nudges_append_text_creates_text_part_when_missing() {
         let mut state = SessionState::default();
         let cfg = NudgeConfig::default();
         // Message has only a tool_call — no text part.
@@ -1547,9 +1533,8 @@ mod tests {
     #[test]
     fn injection_mode_serde_roundtrip() {
         for m in [
-            InjectionMode::Replace,
-            InjectionMode::Append,
-            InjectionMode::Prepend,
+            InjectionMode::WrapBlock,
+            InjectionMode::AppendText,
         ] {
             let s = serde_json::to_string(&m).unwrap();
             let back: InjectionMode = serde_json::from_str(&s).unwrap();

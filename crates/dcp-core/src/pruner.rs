@@ -1,12 +1,14 @@
 //! [`ContextPruner`] — the public facade owning the entire pruning
 //! pipeline (PLAN.md §4.2).
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use dcp_compress::{CompressArgs, CompressResult};
 use dcp_config::Config;
+use dcp_storage::{FileStateStore, default_storage_dir};
 use dcp_prompts::{PromptStore, Prompts};
 use dcp_telemetry::Telemetry;
 use dcp_traits::{
@@ -572,7 +574,7 @@ impl ContextPruner {
                         }
                     }
                     Part::Image { .. } => {
-                        total = total.saturating_add(85);
+                        total = total.saturating_add(self.config.image_tokens() as u64);
                     }
                     _ => {}
                 }
@@ -772,9 +774,21 @@ impl ContextPrunerBuilder {
             .tokenizer
             .unwrap_or_else(|| Arc::new(Char4Tokenizer::new()));
 
-        let persistence: Arc<dyn StatePersistence> = self
-            .persistence
-            .unwrap_or_else(|| Arc::new(NoopStorage::new()));
+        let persistence: Arc<dyn StatePersistence> = if self.persistence.is_some() {
+            self.persistence.unwrap()
+        } else if config.persistence.enabled {
+            let dir = config
+                .persistence
+                .path
+                .clone()
+                .map(PathBuf::from)
+                .unwrap_or_else(default_storage_dir);
+            Arc::new(
+                FileStateStore::new(dir).with_backup(config.persistence.keep_backup),
+            )
+        } else {
+            Arc::new(NoopStorage::new())
+        };
 
         Ok(ContextPruner {
             state: SessionState::default(),

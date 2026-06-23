@@ -1,0 +1,25 @@
+@@ -110,6 +114,7 @@
+             strategies: StrategiesConfig::default(),
+             commands: CommandsConfig::default(),
+             experimental: ExperimentalConfig::default(),
++            tokenizer: TokenizerConfig::default(),
+             cached: CachedProtections::default(),
+         };
+         // The default Config is known-valid by construction, so any
+@@ -250,6 +260,7 @@
+             && self.strategies == other.strategies
+             && self.commands == other.commands
+             && self.experimental == other.experimental
++            && self.tokenizer == other.tokenizer
+     }
+ }
+ 
+@@ -725,6 +772,8 @@
+             "strategies",
+             "commands",
+             "experimental",
++            "tokenizer",
++
+         ] {
+             assert!(props.contains_key(key), "missing property {key}");
+         }

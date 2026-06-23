@@ -59,6 +59,6 @@ pub use error::ConfigError;
 pub use limits::LimitValue;
 pub use sub_configs::{
     CommandsConfig, CompressConfig, DeduplicationConfig, ExperimentalConfig, ManualModeConfig,
-    NotificationConfig, PersistenceConfig, PurgeErrorsConfig, StaleFileReadsConfig,
-    StrategiesConfig, TurnProtectionConfig,
+    NotificationConfig, PurgeErrorsConfig, StaleFileReadsConfig, StrategiesConfig,
+    TokenizerConfig, TurnProtectionConfig,
 };

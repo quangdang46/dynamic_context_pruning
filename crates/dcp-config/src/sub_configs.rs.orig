@@ -276,41 +276,6 @@ pub struct ExperimentalConfig {
     /// Allow programmatic prompt overrides.
     pub custom_prompts: bool,
 }
-// ----------------------------------------------------------------------------
-// persistence
-// ----------------------------------------------------------------------------
-
-/// Persistence configuration (SPEC.md §9.3 — `persistence`).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", default)]
-pub struct PersistenceConfig {
-    /// Master switch for state persistence. When `false`, the ephemeral
-    /// in-memory [`NoopStorage`] backend is used (SPEC.md §9.3).
-    pub enabled: bool,
-    /// Interval in seconds between automatic persistence saves. `0`
-    /// disables auto-save (SPEC.md §9.3). Range: `0..=3600`.
-    pub auto_save_seconds: u32,
-    /// When `true`, each save copies the previous `<session>.json` to
-    /// `<session>.json.bak` before writing the new file (SPEC.md §9.3).
-    pub keep_backup: bool,
-    /// Optional custom storage directory. When `None`, the platform's
-    /// default data directory is used (e.g. `~/.local/share/...` on Linux,
-    /// `~/Library/Application Support/...` on macOS, `%APPDATA%/...` on
-    /// Windows).
-    pub path: Option<String>,
-}
-
-impl Default for PersistenceConfig {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            auto_save_seconds: 0,
-            keep_backup: true,
-            path: None,
-        }
-    }
-}
-
 
 
 // ----------------------------------------------------------------------------
@@ -410,15 +375,6 @@ mod tests {
         let c = CommandsConfig::default();
         assert!(c.enabled);
         assert!(c.protected_tools.is_empty());
-    }
-
-    #[test]
-    fn persistence_default_matches_spec() {
-        let p = PersistenceConfig::default();
-        assert!(p.enabled);
-        assert_eq!(p.auto_save_seconds, 0);
-        assert!(p.keep_backup);
-        assert_eq!(p.path, None);
     }
 
     #[test]

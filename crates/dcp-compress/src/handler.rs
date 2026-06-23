@@ -27,8 +27,9 @@ use crate::timing::resolve_compression_duration;
 use crate::types::{CompressArgs, CompressResult, NotificationEntry, RangeEntry};
 use crate::validate::{validate_non_overlapping, validate_topic_and_content};
 use crate::wrap::{
-    append_protected_tool_outputs, append_protected_user_messages, compute_effective,
-    compute_included, estimate_compressed_tokens, estimate_summary_tokens, wrap_compressed_summary,
+    append_protected_tag_content, append_protected_tool_outputs, append_protected_user_messages,
+    compute_effective, compute_included, estimate_compressed_tokens, estimate_summary_tokens,
+    maybe_buffer_summary, wrap_compressed_summary,
 };
 
 /// Allocate the next block id from `state`, promoting `0` to `1` per
@@ -124,8 +125,9 @@ fn handle_range<C: CompressConfig + ?Sized>(
         let injected = inject_placeholder_expansions(&entry.summary, state)?;
         let with_user = append_protected_user_messages(&injected, &plan, messages, config);
         let with_tools = append_protected_tool_outputs(&with_user, &plan, messages, state, config);
+        let with_tags = append_protected_tag_content(&with_tools, &plan, messages, config);
         let with_blocks = append_missing_block_summaries(
-            &with_tools,
+            &with_tags,
             &plan.required_block_ids,
             &mentioned,
             state,
@@ -133,6 +135,7 @@ fn handle_range<C: CompressConfig + ?Sized>(
 
         let block_id = allocate_block_id(state);
         let wrapped = wrap_compressed_summary(block_id, topic, &with_blocks, config);
+        let wrapped = maybe_buffer_summary(&wrapped, config);
 
         let summary_tokens = estimate_summary_tokens(&wrapped);
         let compressed_tokens = estimate_compressed_tokens(&plan, messages);
@@ -286,9 +289,11 @@ fn handle_message<C: CompressConfig + ?Sized>(
         // Message mode: no placeholders, no missing-blocks step.
         let with_user = append_protected_user_messages(&entry.summary, &plan, messages, config);
         let with_tools = append_protected_tool_outputs(&with_user, &plan, messages, state, config);
+        let with_tags = append_protected_tag_content(&with_tools, &plan, messages, config);
 
         let block_id = allocate_block_id(state);
-        let wrapped = wrap_compressed_summary(block_id, topic, &with_tools, config);
+        let wrapped = wrap_compressed_summary(block_id, topic, &with_tags, config);
+        let wrapped = maybe_buffer_summary(&wrapped, config);
         let summary_tokens = estimate_summary_tokens(&wrapped);
         let compressed_tokens = estimate_compressed_tokens(&plan, messages);
 

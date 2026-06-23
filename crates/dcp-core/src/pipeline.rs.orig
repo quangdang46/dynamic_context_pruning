@@ -372,7 +372,7 @@ pub(crate) fn inject_nudges_and_ids(
     telemetry: &mut Telemetry,
 ) {
     let nudge_cfg = nudge_config_from(config);
-    let total_tokens = total_token_count(tokenizer, messages, config.tokenizer.image_tokens);
+    let total_tokens = total_token_count(tokenizer, messages);
     let priorities = build_priority_map(&nudge_cfg, state, messages, total_tokens);
     record_nudge_telemetry(&priorities, telemetry);
 
@@ -394,7 +394,7 @@ fn record_nudge_telemetry(priorities: &HashMap<String, NudgeKind>, telemetry: &m
     }
 }
 
-fn total_token_count(tokenizer: &dyn Tokenizer, messages: &[Message], image_tokens: u32) -> u64 {
+fn total_token_count(tokenizer: &dyn Tokenizer, messages: &[Message]) -> u64 {
     let mut total: u64 = 0;
     for msg in messages {
         for part in &msg.parts {
@@ -417,7 +417,7 @@ fn total_token_count(tokenizer: &dyn Tokenizer, messages: &[Message], image_toke
                     }
                 }
                 Part::Image { .. } => {
-                    total = total.saturating_add(image_tokens as u64);
+                    total = total.saturating_add(85);
                 }
                 _ => {}
             }

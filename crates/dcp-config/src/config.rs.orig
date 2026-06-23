@@ -14,7 +14,7 @@ use crate::enums::{CacheStabilityMode, CacheStabilityModeSchema, InjectionMode, 
 use crate::error::ConfigError;
 use crate::sub_configs::{
     CommandsConfig, CompressConfig, ExperimentalConfig, ManualModeConfig, NotificationConfig,
-    PersistenceConfig, TokenizerConfig,
+    TokenizerConfig,
     StrategiesConfig, TurnProtectionConfig,
 };
 
@@ -90,11 +90,10 @@ pub struct Config {
     /// How nudges are glued onto messages (SPEC.md §8 / §10.2).
     /// Defaults to `wrap_block`.
     pub injection_mode: InjectionMode,
+    /// Cached, compiled protection sets. Rebuilt after every load and
     /// Tokenizer configuration.
     pub tokenizer: TokenizerConfig,
-    /// Persistence configuration (SPEC.md §9.3).
-    pub persistence: PersistenceConfig,
-    /// Cached, compiled protection sets. Rebuilt after every load and
+
     /// after any programmatic mutation.
     #[serde(skip)]
     #[schemars(skip)]
@@ -116,8 +115,6 @@ impl Default for Config {
             commands: CommandsConfig::default(),
             experimental: ExperimentalConfig::default(),
             injection_mode: InjectionMode::WrapBlock,
-            tokenizer: TokenizerConfig::default(),
-            persistence: PersistenceConfig::default(),
             cached: CachedProtections::default(),
         };
         // The default Config is known-valid by construction, so any
@@ -266,8 +263,6 @@ impl PartialEq for Config {
             && self.commands == other.commands
             && self.experimental == other.experimental
             && self.injection_mode == other.injection_mode
-            && self.tokenizer == other.tokenizer
-            && self.persistence == other.persistence
     }
 }
 
@@ -511,12 +506,6 @@ impl dcp_compress::CompressConfig for Config {
     fn show_compression(&self) -> bool {
         self.compress.show_compression
     }
-    fn protect_tags(&self) -> bool {
-        self.compress.protect_tags
-    }
-    fn summary_buffer(&self) -> bool {
-        self.compress.summary_buffer
-    }
 }
 
 #[cfg(test)]
@@ -612,8 +601,6 @@ mod tests {
         assert!(CC::protected_tools(&c).is_protected("skill"));
         assert!(!CC::protect_user_messages(&c));
         assert!(!CC::show_compression(&c));
-        assert!(!CC::protect_tags(&c));
-        assert!(CC::summary_buffer(&c));
     }
 
     #[test]
@@ -794,8 +781,6 @@ mod tests {
             "commands",
             "experimental",
             "injectionMode",
-            "tokenizer",
-            "persistence",
         ] {
             assert!(props.contains_key(key), "missing property {key}");
         }
