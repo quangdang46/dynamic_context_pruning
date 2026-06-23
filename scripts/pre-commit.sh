@@ -57,7 +57,7 @@ declare -A BEAD_CRATES=(
     ["aw4"]="dcp-notification"
     ["xtm"]="dcp-config" ["1y7"]="dcp-config"
     ["yoa"]="dcp-cli" ["0ed"]="dcp-cli" ["xq4"]="dcp-cli" ["ppp"]="dcp-cli"
-    ["djp"]="dcp-cli" ["dm9"]="dcp-hook" ["n8c"]="dcp-mcp"
+    ["djp"]="dcp-cli"
     ["dz6"]="dcp-rig"
     ["mu3"]="dcp-permissions" ["mwr"]="dcp-notification"
     ["zet"]="dcp-storage"
@@ -90,8 +90,6 @@ get_staged_crates() {
             crates/dcp-notification/*)   crate="dcp-notification" ;;
             crates/dcp-config/*)        crate="dcp-config" ;;
             crates/dcp-cli/*)           crate="dcp-cli" ;;
-            crates/dcp-hook/*)   crate="dcp-hook" ;;
-            crates/dcp-mcp/*)           crate="dcp-mcp" ;;
             crates/dcp-rig/*)           crate="dcp-rig" ;;
             crates/dcp-storage/*)       crate="dcp-storage" ;;
             crates/dcp-core/*)          crate="dcp-core" ;;

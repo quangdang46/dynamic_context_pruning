@@ -44,34 +44,6 @@ jobs:
             tar -czf ../../..//dcp-${{ matrix.target }}.tar.gz .
           fi
           cd /tmp
-      - name: Build dcp-mcp binary
-        run: |
-          cargo build --release -p dcp-mcp --target ${{ matrix.target }}
-          mkdir -p dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}
-          if [ "${{ matrix.ext }}" = "zip" ]; then
-            cp target/${{ matrix.target }}/release/dcp-mcp.exe dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-mcp.exe
-            cd dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}
-            powershell -Command "Compress-Archive -Path dcp-mcp.exe -DestinationPath ..\\..\\..\\dcp-mcp-${{ matrix.target }}.zip -Force"
-          else
-            cp target/${{ matrix.target }}/release/dcp-mcp dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-mcp
-            cd dist/${{ matrix.artifact }}/dcp-mcp-${{ matrix.binary#dcp }}/${{ matrix.binary }}
-            tar -czf ../../..//dcp-mcp-${{ matrix.target }}.tar.gz .
-          fi
-          cd /tmp
-      - name: Build dcp-claude-hook binary
-        run: |
-          cargo build --release -p dcp-claude-hook --target ${{ matrix.target }}
-          mkdir -p dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}
-          if [ "${{ matrix.ext }}" = "zip" ]; then
-            cp target/${{ matrix.target }}/release/dcp-claude-hook.exe dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-claude-hook.exe
-            cd dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}
-            powershell -Command "Compress-Archive -Path dcp-claude-hook.exe -DestinationPath ..\\..\\..\\dcp-claude-hook-${{ matrix.target }}.zip -Force"
-          else
-            cp target/${{ matrix.target }}/release/dcp-claude-hook dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}/dcp-claude-hook
-            cd dist/${{ matrix.artifact }}/dcp-claude-hook-${{ matrix.binary#dcp }}/${{ matrix.binary }}
-            tar -czf ../../..//dcp-claude-hook-${{ matrix.target }}.tar.gz .
-          fi
-          cd /tmp
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}

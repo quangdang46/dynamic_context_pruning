@@ -12,9 +12,9 @@
 
 ## What is this?
 
-Dynamic Context Pruning (DCP) reduces token usage in LLM coding agent sessions through a combination of **deterministic strategies** (deduplication, error purging, stale file read removal) and **LLM-driven compression**. It manages session state, tracks compression blocks for cache stability, and exposes pruning capabilities via CLI, MCP, and Claude Code hooks.
+Dynamic Context Pruning (DCP) reduces token usage in LLM coding agent sessions through a combination of **deterministic strategies** (deduplication, error purging, stale file read removal) and **LLM-driven compression**. It manages session state, tracks compression blocks for cache stability, and exposes pruning capabilities via CLI and direct library embedding.
 
-Built as a modular Rust workspace with 21 crates — each responsible for a distinct capability (token counting, persistence, configuration cascading, telemetry, permissions, notifications, and more).
+Built as a modular Rust workspace with 19 crates — each responsible for a distinct capability (token counting, persistence, configuration cascading, telemetry, permissions, notifications, and more).
 
 ## Architecture
 
@@ -38,10 +38,7 @@ dcp-prompts        Default system prompts + 3-tier override cascade (extension, 
        ↑
 dcp-core           ContextPruner facade + orchestration (top-level entry point)
        ↑
-       ├── dcp-mcp           MCP server binary (Model Context Protocol)
-       ├── dcp-cli           CLI binary: stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress
-       ├── dcp-hook          Claude Code SessionStart hook binary
-       └── dcp-rig           Rig framework adapter (test fixtures)
+       └── dcp-cli           CLI binary: stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress
 
 dcp-permissions    Auth, host permissions, compress permission resolution
 dcp-messages       Message query, shape, sync, priority, injection, subagents, reasoning strip
@@ -61,8 +58,6 @@ cargo test --workspace
 # Run the CLI
 cargo run -p dcp-cli -- --help
 
-# Run the MCP server
-cargo run -p dcp-mcp
 ```
 
 ## Crate Guide
@@ -85,9 +80,7 @@ cargo run -p dcp-mcp
 | `dcp-messages` | `crates/dcp-messages` | Message query, shape, sync, priority, injection, subagents, reasoning strip |
 | `dcp-notification` | `crates/dcp-notification` | User-facing notification formatting and delivery |
 | `dcp-core` | `crates/dcp-core` | `ContextPruner` facade and orchestration (primary entry point) |
-| `dcp-mcp` | `crates/dcp-mcp` | MCP server binary exposing DCP via Model Context Protocol |
 | `dcp-cli` | `crates/dcp-cli` | CLI binary with stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress commands (requires `--features scripts` for analytics commands) |
-| `dcp-hook` | `crates/dcp-hook` | Claude Code SessionStart hook binary |
 | `dcp-rig` | `crates/dcp-rig` | Rig framework adapter (test fixtures) |
 | `dynamic_context_pruning` | `crates/dynamic_context_pruning` | Umbrella crate re-exporting all public types |
 

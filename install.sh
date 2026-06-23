@@ -2,18 +2,14 @@
 # =============================================================================
 # install.sh — Install DCP (Dynamic Context Pruning) from GitHub releases
 # =============================================================================
-# Downloads binaries for your platform and auto-configures:
-#   - MCP servers (Claude Code, Cursor, Cline, Windsurf, VS Code Copilot)
-#   - Claude Code hooks (PreToolUse, SessionStart)
-#   - Git pre-commit hook (optional)
+# Downloads the dcp CLI binary for your platform and sets up a git
+# pre-commit hook (optional).
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh | bash
 #   ./install.sh                          # install latest
 #   ./install.sh --version v0.1.0         # install specific version
 #   ./install.sh --dest ~/bin             # custom install directory
-#   ./install.sh --no-mcp                 # skip MCP provider config
-#   ./install.sh --no-hooks               # skip Claude Code hooks
 #   ./install.sh --uninstall              # remove everything
 #   ./install.sh --dry-run                # preview without changes
 # =============================================================================
@@ -28,7 +24,7 @@ REPO="dynamic_context_pruning"
 DEST="${DEST:-$HOME/.local/bin}"
 VERSION="${VERSION:-}"
 QUIET=0; EASY=0; VERIFY=0; FROM_SOURCE=0; UNINSTALL=0; DRY_RUN=0; CHECK=0
-NO_MCP=0; NO_HOOKS=0; NO_GIT_HOOK=0
+NO_GIT_HOOK=0
 MAX_RETRIES=3; DOWNLOAD_TIMEOUT=120
 LOCK_DIR="/tmp/${BINARY_NAME}-install.lock.d"
 TMP=""
@@ -73,26 +69,15 @@ ${BOLD}Options:${RESET}
   --easy-mode          Auto-add to PATH in shell RC files
   --verify             Run self-test after install
   --from-source        Build from source instead of downloading
-  --no-mcp             Skip MCP provider configuration
-  --no-hooks           Skip Claude Code hooks configuration
   --no-git-hook        Skip git pre-commit hook
-  --check              Check DCP installation and provider configs
+  --check              Check DCP installation
   --dry-run            Preview what would be done without changes
   --quiet, -q          Suppress progress output
   --uninstall          Remove DCP and all configurations
   -h, --help           Show this help
 
-${BOLD}Providers auto-configured:${RESET}
-  • Claude Code  (hooks + MCP)
-  • Cursor       (MCP)
-  • Cline        (MCP)
-  • Windsurf     (MCP)
-  • VS Code      (Copilot MCP)
-  • OpenCode     (MCP, env as array)
-  • Codex CLI    (hooks + MCP, TOML)
-  • Gemini CLI   (hooks + MCP)
-  • Amazon Q     (hooks + MCP)
-  • Warp         (MCP)
+${BOLD}Features:${RESET}
+  • Git pre-commit hook (optional)
 
 ${BOLD}Examples:${RESET}
   # Install latest with all providers
@@ -117,8 +102,7 @@ while [ $# -gt 0 ]; do
         --easy-mode)    EASY=1;                 shift;;
         --verify)       VERIFY=1;               shift;;
         --from-source)  FROM_SOURCE=1;           shift;;
-        --no-mcp)       NO_MCP=1;               shift;;
-        --no-hooks)     NO_HOOKS=1;             shift;;
+        # --no-mcp removed; MCP server no longer ships with DCP
         --no-git-hook)  NO_GIT_HOOK=1;          shift;;
         --dry-run)      DRY_RUN=1;              shift;;
 --quiet|-q)     QUIET=1;                shift;;
@@ -135,33 +119,14 @@ do_uninstall() {
     log_step "Uninstalling DCP..."
 
     # Remove binaries
-    for bin in dcp dcp-mcp dcp-hook; do
+    for bin in dcp; do
         if [ -f "$DEST/$bin" ]; then
             rm -f "$DEST/$bin"
             log_info "Removed $DEST/$bin"
         fi
     done
 
-    # Remove from Claude Code settings (both locations)
-    _remove_mcp_from_file "$HOME/.claude/settings.json" "dcp"
-    _remove_mcp_from_file "$HOME/.claude.json" "dcp"
-    _remove_hooks_from_claude_settings "$HOME/.claude/settings.json"
-
-    # Remove from other JSON providers
-    _remove_mcp_from_file "$HOME/.cline/mcp_settings.json" "dcp"
-    _remove_mcp_from_file "$HOME/.codeium/windsurf/mcp_config.json" "dcp"
-    _remove_mcp_from_file "$HOME/.opencode.json" "dcp"
-    _remove_mcp_from_file "$HOME/.gemini/settings.json" "dcp"
-    _remove_mcp_from_file "$HOME/.aws/amazonq/mcp.json" "dcp"
-    _remove_mcp_from_file "$HOME/.warp/.mcp.json" "dcp"
-
-    # Remove from Codex CLI (TOML)
-    if [ -f "$HOME/.codex/config.toml" ]; then
-        local tmpf; tmpf="$(mktemp)"
-        sed '/^\[mcp_servers\.dcp\]/,/^\[/{ /^\[mcp_servers\.dcp\]/d; /^\[/{p;d}; d }' "$HOME/.codex/config.toml" > "$tmpf" && mv "$tmpf" "$HOME/.codex/config.toml"
-        sed '/dcp-hook/d' "$HOME/.codex/config.toml" > "$tmpf" && mv "$tmpf" "$HOME/.codex/config.toml"
-        log_info "Removed DCP from Codex CLI config"
-    fi
+    # Remove PATH entries
 
     # Remove PATH entries
     for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
@@ -189,7 +154,7 @@ do_check() {
     # ── 1. Binary checks ──────────────────────────────────────────────────────
     echo -e "  ${BOLD}Binaries:${RESET}" >&2
 
-    for bin in dcp dcp-mcp dcp-hook; do
+    for bin in dcp; do
         local bin_path="$DEST/$bin"
         if [ -f "$bin_path" ] && [ -x "$bin_path" ]; then
             local ver
@@ -200,33 +165,6 @@ do_check() {
             exit_code=1
         fi
     done
-
-    # ── 2. MCP provider checks ───────────────────────────────────────────────
-    echo "" >&2
-    echo -e "  ${BOLD}MCP Providers:${RESET}" >&2
-
-    _check_mcp_json "Claude Code" "$HOME/.claude/settings.json" "mcpServers.dcp"
-    _check_mcp_json "Claude Code (~/.claude.json)" "$HOME/.claude.json" "mcpServers.dcp"
-    _check_mcp_json "Cursor" "$HOME/.config/Cursor/User/settings.json" "mcp.servers.dcp"
-    _check_mcp_json "Cline" "$HOME/.cline/mcp_settings.json" "mcpServers.dcp"
-    _check_mcp_json "Windsurf" "$HOME/.codeium/windsurf/mcp_config.json" "mcpServers.dcp"
-    _check_mcp_json "VS Code Copilot" "$HOME/.config/Code/User/settings.json" "github.copilot.chat.mcp.dcp"
-    _check_mcp_json "OpenCode" "$HOME/.opencode.json" "mcpServers.dcp"
-    _check_mcp_json "Gemini CLI" "$HOME/.gemini/settings.json" "mcpServers.dcp"
-    _check_mcp_json "Amazon Q" "$HOME/.aws/amazonq/mcp.json" "mcpServers.dcp"
-    _check_mcp_json "Warp" "$HOME/.warp/.mcp.json" "mcpServers.dcp"
-
-    # TOML-based
-    _check_mcp_toml "Codex CLI" "$HOME/.codex/config.toml" "mcp_servers.dcp"
-
-    # ── 3. Hook checks ─────────────────────────────────────────────────────────
-    echo "" >&2
-    echo -e "  ${BOLD}Hooks:${RESET}" >&2
-
-    _check_claude_hooks
-    _check_codex_hooks
-    _check_gemini_hooks
-    _check_amazonq_hooks
 
     echo "" >&2
     echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════${RESET}" >&2
@@ -239,117 +177,6 @@ do_check() {
     echo "" >&2
 
     exit $exit_code
-}
-
-_check_mcp_json() {
-    local name="$1" file="$2" jq_path="$3"
-    if [ ! -f "$file" ]; then
-        echo -e "    ${DIM}—${RESET} ${name}: ${DIM}not configured (file not found)${RESET}" >&2
-        return 0
-    fi
-
-    if command -v jq &>/dev/null; then
-        if jq -e ".$jq_path" "$file" >/dev/null 2>&1; then
-            local cmd
-            cmd=$(jq -r ".$jq_path.command // empty" "$file" 2>/dev/null)
-            echo -e "    ${GREEN}✓${RESET} ${name}: ${CYAN}${cmd}${RESET}" >&2
-        else
-            echo -e "    ${RED}✗${RESET} ${name}: ${YELLOW}entry missing or misconfigured${RESET}" >&2
-            exit_code=1
-        fi
-    else
-        # Fallback: grep for the key
-        if grep -q "\"dcp\"" "$file" 2>/dev/null; then
-            echo -e "    ${GREEN}✓${RESET} ${name}: ${DIM}dcp entry found (jq not available for details)${RESET}" >&2
-        else
-            echo -e "    ${RED}✗${RESET} ${name}: ${YELLOW}dcp entry not found${RESET}" >&2
-            exit_code=1
-        fi
-    fi
-}
-
-_check_mcp_toml() {
-    local name="$1" file="$2" section="$3"
-    if [ ! -f "$file" ]; then
-        echo -e "    ${DIM}—${RESET} ${name}: ${DIM}not configured (file not found)${RESET}" >&2
-        return 0
-    fi
-
-    if grep -q "^\[${section}\]" "$file" 2>/dev/null; then
-        local cmd
-        cmd=$(grep -A1 "^\[${section}\]" "$file" | grep "^command = " | sed 's/command = //' | tr -d '"' | tr -d ' ')
-        echo -e "    ${GREEN}✓${RESET} ${name}: ${CYAN}${cmd}${RESET}" >&2
-    else
-        echo -e "    ${RED}✗${RESET} ${name}: ${YELLOW}[${section}] not found${RESET}" >&2
-        exit_code=1
-    fi
-}
-
-_check_claude_hooks() {
-    local file="$HOME/.claude/settings.json"
-    if [ ! -f "$file" ]; then
-        echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
-        return 0
-    fi
-
-    if command -v jq &>/dev/null; then
-        if jq -e '.hooks.PreToolUse[] | select(.hooks[]?.command | test("dcp-hook"))' "$file" >/dev/null 2>&1; then
-            echo -e "    ${GREEN}✓${RESET} Claude Code: ${CYAN}PreToolUse + SessionStart${RESET}" >&2
-        elif jq -e '.hooks' "$file" >/dev/null 2>&1; then
-            echo -e "    ${YELLOW}!${RESET} Claude Code: ${YELLOW}hooks present but dcp-hook not found${RESET}" >&2
-            exit_code=1
-        else
-            echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
-        fi
-    else
-        if grep -q "dcp-hook" "$file" 2>/dev/null; then
-            echo -e "    ${GREEN}✓${RESET} Claude Code: ${CYAN}dcp-hook found${RESET}" >&2
-        else
-            echo -e "    ${DIM}—${RESET} Claude Code hooks: ${DIM}not configured${RESET}" >&2
-        fi
-    fi
-}
-
-_check_codex_hooks() {
-    local file="$HOME/.codex/config.toml"
-    if [ ! -f "$file" ]; then
-        echo -e "    ${DIM}—${RESET} Codex CLI hooks: ${DIM}not configured${RESET}" >&2
-        return 0
-    fi
-
-    if grep -q "dcp-hook" "$file" 2>/dev/null; then
-        echo -e "    ${GREEN}✓${RESET} Codex CLI: ${CYAN}dcp-hook configured${RESET}" >&2
-    else
-        echo -e "    ${DIM}—${RESET} Codex CLI hooks: ${DIM}not configured${RESET}" >&2
-    fi
-}
-
-_check_gemini_hooks() {
-    local file="$HOME/.gemini/settings.json"
-    if [ ! -f "$file" ]; then
-        echo -e "    ${DIM}—${RESET} Gemini CLI hooks: ${DIM}not configured${RESET}" >&2
-        return 0
-    fi
-
-    if grep -q "dcp-hook" "$file" 2>/dev/null; then
-        echo -e "    ${GREEN}✓${RESET} Gemini CLI: ${CYAN}dcp-hook configured${RESET}" >&2
-    else
-        echo -e "    ${DIM}—${RESET} Gemini CLI hooks: ${DIM}not configured${RESET}" >&2
-    fi
-}
-
-_check_amazonq_hooks() {
-    local file="$HOME/.aws/amazonq/mcp.json"
-    if [ ! -f "$file" ]; then
-        echo -e "    ${DIM}—${RESET} Amazon Q hooks: ${DIM}not configured${RESET}" >&2
-        return 0
-    fi
-
-    if grep -q "dcp-hook" "$file" 2>/dev/null; then
-        echo -e "    ${GREEN}✓${RESET} Amazon Q: ${CYAN}dcp-hook configured${RESET}" >&2
-    else
-        echo -e "    ${DIM}—${RESET} Amazon Q hooks: ${DIM}not configured${RESET}" >&2
-    fi
 }
 
 # ── Platform Detection ────────────────────────────────────────────────────────
@@ -424,10 +251,8 @@ install_binary_atomic() {
 build_from_source() {
     command -v cargo >/dev/null || die "cargo not found — install Rust: https://rustup.rs"
     git clone --depth 1 "https://github.com/${OWNER}/${REPO}.git" "$TMP/src"
-    for bin_name in dcp dcp-mcp dcp-hook; do
+    for bin_name in dcp; do
         local pkg="dcp-cli"
-        [ "$bin_name" = "dcp-mcp" ] && pkg="dcp-mcp"
-        [ "$bin_name" = "dcp-hook" ] && pkg="dcp-hook"
         (cd "$TMP/src" && CARGO_TARGET_DIR="$TMP/target" cargo build --release -p "$pkg" --bin "$bin_name") || true
         [ -f "$TMP/target/release/$bin_name" ] && install_binary_atomic "$TMP/target/release/$bin_name" "$DEST/$bin_name"
     done
@@ -442,7 +267,7 @@ download_all_binaries() {
     [ "${platform}" == windows* ] && ext="zip"
     local base_url="https://github.com/${OWNER}/${REPO}/releases/download/${VERSION}"
 
-    for bin_name in dcp dcp-mcp dcp-hook; do
+    for bin_name in dcp; do
         local url="${base_url}/${bin_name}-${target}.${ext}"
         local archive="${TMP}/${bin_name}.${ext}"
 
@@ -489,417 +314,6 @@ maybe_add_path() {
         done
     fi
     log_warn "Restart shell or: export PATH=\"$DEST:\$PATH\""
-}
-
-# ── JSON Helpers ──────────────────────────────────────────────────────────────
-
-# Merge a JSON object into a file's top-level key.
-# Usage: _json_merge <file> <key> <json_object>
-_json_merge() {
-    local file="$1" key="$2" value="$3"
-
-    [ "$DRY_RUN" -eq 1 ] && { log_info "(dry-run) Would configure $file"; return 0; }
-
-    if [ ! -f "$file" ]; then
-        echo "{ \"${key}\": ${value} }" > "$file"
-        return 0
-    fi
-
-    if command -v jq &>/dev/null; then
-        local tmpf; tmpf="$(mktemp)"
-        jq --argjson val "$value" ".$key += \$val // .${key} = \$val" "$file" > "$tmpf" && mv "$tmpf" "$file"
-    elif command -v node &>/dev/null; then
-        node -e "
-            const fs=require('fs'),f='${file}';
-            const d=JSON.parse(fs.readFileSync(f,'utf8')||'{}');
-            d['${key}']=Object.assign(d['${key}']||{},${value});
-            fs.writeFileSync(f,JSON.stringify(d,null,2)+'\n');
-        "
-    elif command -v python3 &>/dev/null; then
-        python3 -c "
-import json,os
-f='${file}'; k='${key}'; v=${value}
-d=json.load(open(f)) if os.path.exists(f) and os.path.getsize(f)>0 else {}
-d.setdefault(k,{}).update(v)
-json.dump(d,open(f,'w'),indent=2); print()
-"
-    else
-        log_warn "No JSON tool (jq/node/python3) — skipping $file"
-        return 1
-    fi
-}
-
-# Remove a key from mcpServers in a JSON file
-_remove_mcp_from_file() {
-    local file="$1" key="$2"
-    [ -f "$file" ] || return 0
-    command -v jq &>/dev/null || return 0
-    local tmpf; tmpf="$(mktemp)"
-    jq "del(.mcpServers.${key})" "$file" > "$tmpf" && mv "$tmpf" "$file"
-}
-
-# Remove DCP hooks from Claude Code settings
-_remove_hooks_from_claude_settings() {
-    local file="$1"
-    [ -f "$file" ] || return 0
-    command -v jq &>/dev/null || return 0
-    local tmpf; tmpf="$(mktemp)"
-    jq 'del(.hooks.PreToolUse[] | select(.hooks[]?.command | test("dcp-hook"))) // . | del(.hooks.SessionStart[] | select(.hooks[]?.command | test("dcp-hook"))) // .' "$file" > "$tmpf" && mv "$tmpf" "$file"
-}
-
-# ── MCP Provider Configuration ───────────────────────────────────────────────
-
-configure_mcp_provider() {
-    local provider_name="$1" settings_file="$2" json_key="$3" binary="$4"
-
-    [ -f "$binary" ] || return 0
-
-    # Check if the config dir exists (skip providers that aren't installed)
-    local config_dir
-    config_dir="$(dirname "$settings_file")"
-    if [ ! -d "$config_dir" ]; then
-        log_debug "${provider_name}: config dir not found, skipping"
-        return 0
-    fi
-
-    log_step "Configuring MCP for ${provider_name}..."
-
-    local mcp_entry
-    mcp_entry=$(cat <<EOF
-{
-  "dcp": {
-    "command": "${binary}",
-    "args": [],
-    "env": {}
-  }
-}
-EOF
-)
-
-    if _json_merge "$settings_file" "$json_key" "$mcp_entry"; then
-        log_info "${provider_name} MCP configured in ${settings_file}"
-    fi
-}
-
-configure_all_mcp_providers() {
-    local binary="$DEST/dcp-mcp"
-    [ -f "$binary" ] || { log_warn "dcp-mcp not installed — skipping MCP setup"; return; }
-
-    # ── JSON-based providers ───────────────────────────────────────────────
-
-    # Claude Code — write to both config locations
-    configure_mcp_provider "Claude Code" "$HOME/.claude/settings.json" "mcpServers" "$binary"
-    configure_mcp_provider "Claude Code (~/.claude.json)" "$HOME/.claude.json" "mcpServers" "$binary"
-
-    # Cursor
-    local cursor_settings=""
-    case "$(uname -s)" in
-        Darwin) cursor_settings="$HOME/Library/Application Support/Cursor/User/settings.json" ;;
-        *)      cursor_settings="$HOME/.config/Cursor/User/settings.json" ;;
-    esac
-    configure_mcp_provider "Cursor" "$cursor_settings" "mcp.servers" "$binary"
-
-    # Cline
-    configure_mcp_provider "Cline" "$HOME/.cline/mcp_settings.json" "mcpServers" "$binary"
-
-    # Windsurf
-    configure_mcp_provider "Windsurf" "$HOME/.codeium/windsurf/mcp_config.json" "mcpServers" "$binary"
-
-    # VS Code Copilot
-    local vscode_settings=""
-    case "$(uname -s)" in
-        Darwin) vscode_settings="$HOME/Library/Application Support/Code/User/settings.json" ;;
-        *)      vscode_settings="$HOME/.config/Code/User/settings.json" ;;
-    esac
-    configure_mcp_provider "VS Code" "$vscode_settings" "github.copilot.chat.mcp" "$binary"
-
-    # OpenCode — ~/.opencode.json (uses "type":"stdio" + env as array)
-    configure_mcp_opencode "$binary"
-
-    # Gemini CLI — ~/.gemini/settings.json
-    configure_mcp_provider "Gemini CLI" "$HOME/.gemini/settings.json" "mcpServers" "$binary"
-
-    # Amazon Q — ~/.aws/amazonq/mcp.json
-    configure_mcp_provider "Amazon Q" "$HOME/.aws/amazonq/mcp.json" "mcpServers" "$binary"
-
-    # Warp — ~/.warp/.mcp.json
-    configure_mcp_provider "Warp" "$HOME/.warp/.mcp.json" "mcpServers" "$binary"
-
-    # ── TOML-based providers ───────────────────────────────────────────────
-
-    # Codex CLI — ~/.codex/config.toml
-    configure_mcp_codex "$binary"
-}
-
-# ── OpenCode MCP (special: uses "type":"stdio" + env as array of "KEY=VALUE") ──
-
-configure_mcp_opencode() {
-    local binary="$1"
-    local settings_file="$HOME/.opencode.json"
-    local config_dir
-    config_dir="$(dirname "$settings_file")"
-
-    # OpenCode config can be in $XDG_CONFIG_HOME/opencode/.opencode.json too
-    if [ ! -d "$config_dir" ] && [ -n "${XDG_CONFIG_HOME:-}" ] && [ -d "${XDG_CONFIG_HOME}/opencode" ]; then
-        settings_file="${XDG_CONFIG_HOME}/opencode/.opencode.json"
-    elif [ ! -f "$settings_file" ] && [ -d "$HOME/.config/opencode" ]; then
-        settings_file="$HOME/.config/opencode/.opencode.json"
-    fi
-
-    config_dir="$(dirname "$settings_file")"
-    if [ ! -d "$config_dir" ]; then
-        log_debug "OpenCode: config dir not found, skipping"
-        return 0
-    fi
-
-    log_step "Configuring MCP for OpenCode..."
-
-    # OpenCode uses env as array of "KEY=VALUE" strings, not an object
-    local mcp_entry
-    mcp_entry=$(cat <<EOF
-{
-  "dcp": {
-    "type": "stdio",
-    "command": "${binary}",
-    "args": [],
-    "env": []
-  }
-}
-EOF
-)
-
-    if _json_merge "$settings_file" "mcpServers" "$mcp_entry"; then
-        log_info "OpenCode MCP configured in ${settings_file}"
-    fi
-}
-
-# ── Codex CLI MCP (TOML-based config) ─────────────────────────────────────────
-
-_toml_upsert_mcp() {
-    local file="$1" server_name="$2" command_path="$3"
-
-    [ "$DRY_RUN" -eq 1 ] && { log_info "(dry-run) Would configure $file"; return 0; }
-
-    mkdir -p "$(dirname "$file")"
-
-    # Ensure file exists
-    [ -f "$file" ] || touch "$file"
-
-    # Check if section already exists
-    if grep -q "^\[mcp_servers\.${server_name}\]" "$file" 2>/dev/null; then
-        # Update existing section: replace the command line
-        local tmpf; tmpf="$(mktemp)"
-        sed "s|^\(command = \).*|\1\"${command_path}\"|" "$file" > "$tmpf" && mv "$tmpf" "$file"
-    else
-        # Append new section
-        cat >> "$file" <<TOML
-
-[mcp_servers.${server_name}]
-type = "stdio"
-command = "${command_path}"
-args = []
-TOML
-    fi
-}
-
-_toml_upsert_hooks() {
-    local file="$1" hook_binary="$2"
-
-    [ "$DRY_RUN" -eq 1 ] && { log_info "(dry-run) Would configure hooks in $file"; return 0; }
-
-    mkdir -p "$(dirname "$file")"
-    [ -f "$file" ] || touch "$file"
-
-    # Only add if not already present
-    if grep -q "dcp-hook" "$file" 2>/dev/null; then
-        return 0
-    fi
-
-    cat >> "$file" <<TOML
-
-[[hooks.PreToolUse]]
-matcher = "*"
-
-[[hooks.PreToolUse.hooks]]
-type = "command"
-command = "${hook_binary}"
-
-[[hooks.SessionStart]]
-matcher = "compact"
-
-[[hooks.SessionStart.hooks]]
-type = "command"
-command = "${hook_binary} --on-compact"
-TOML
-}
-
-configure_mcp_codex() {
-    local binary="$1"
-    local config_file="$HOME/.codex/config.toml"
-
-    if [ ! -d "$(dirname "$config_file")" ]; then
-        log_debug "Codex CLI: config dir not found, skipping"
-        return 0
-    fi
-
-    log_step "Configuring MCP for Codex CLI..."
-
-    if _toml_upsert_mcp "$config_file" "dcp" "$binary"; then
-        log_info "Codex CLI MCP configured in ${config_file}"
-    fi
-}
-
-# ── Gemini CLI Hooks ──────────────────────────────────────────────────────────
-
-configure_gemini_hooks() {
-    local hook_binary="$DEST/dcp-hook"
-    [ -f "$hook_binary" ] || return 0
-
-    local settings_file="$HOME/.gemini/settings.json"
-    [ -d "$(dirname "$settings_file")" ] || return 0
-
-    log_step "Configuring hooks for Gemini CLI..."
-
-    [ "$DRY_RUN" -eq 1 ] && { log_info "(dry-run) Would configure hooks in $settings_file"; return; }
-
-    local hooks_json
-    hooks_json=$(cat <<EOJSON
-{
-  "BeforeTool": [
-    {
-      "matcher": ".*",
-      "sequential": false,
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${hook_binary}",
-          "name": "dcp-prune",
-          "timeout": 5000,
-          "description": "DCP context pruning"
-        }
-      ]
-    }
-  ],
-  "SessionStart": [
-    {
-      "matcher": "startup",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${hook_binary} --on-compact",
-          "name": "dcp-compact",
-          "description": "DCP compact handler"
-        }
-      ]
-    }
-  ]
-}
-EOJSON
-)
-
-    if _json_merge "$settings_file" "hooks" "$hooks_json"; then
-        log_info "Gemini CLI hooks configured in $settings_file"
-    fi
-}
-
-# ── Amazon Q Hooks ────────────────────────────────────────────────────────────
-
-configure_amazonq_hooks() {
-    local hook_binary="$DEST/dcp-hook"
-    [ -f "$hook_binary" ] || return 0
-
-    local config_file="$HOME/.aws/amazonq/mcp.json"
-    [ -d "$(dirname "$config_file")" ] || return 0
-
-    log_step "Configuring hooks for Amazon Q..."
-
-    [ "$DRY_RUN" -eq 1 ] && { log_info "(dry-run) Would configure hooks in $config_file"; return; }
-
-    local hooks_json
-    hooks_json=$(cat <<EOJSON
-{
-  "preToolUse": [
-    {
-      "matcher": "*",
-      "command": "${hook_binary}"
-    }
-  ],
-  "stop": [
-    {
-      "command": "${hook_binary} --on-compact"
-    }
-  ]
-}
-EOJSON
-)
-
-    if _json_merge "$config_file" "hooks" "$hooks_json"; then
-        log_info "Amazon Q hooks configured in $config_file"
-    fi
-}
-
-# ── Codex CLI Hooks ───────────────────────────────────────────────────────────
-
-configure_codex_hooks() {
-    local hook_binary="$DEST/dcp-hook"
-    [ -f "$hook_binary" ] || return 0
-
-    local config_file="$HOME/.codex/config.toml"
-    [ -d "$(dirname "$config_file")" ] || return 0
-
-    log_step "Configuring hooks for Codex CLI..."
-
-    _toml_upsert_hooks "$config_file" "$hook_binary"
-    log_info "Codex CLI hooks configured in $config_file"
-}
-
-# ── Claude Code Hooks ─────────────────────────────────────────────────────────
-
-configure_claude_hooks() {
-    local hook_binary="$DEST/dcp-hook"
-    [ -f "$hook_binary" ] || { log_warn "dcp-hook not installed — skipping hook setup"; return; }
-
-    log_step "Configuring Claude Code hooks..."
-
-    local settings_dir="$HOME/.claude"
-    local settings_file="${settings_dir}/settings.json"
-
-    [ "$DRY_RUN" -eq 1 ] && { log_info "(dry-run) Would configure hooks in $settings_file"; return; }
-
-    mkdir -p "$settings_dir"
-
-    local hooks_json
-    hooks_json=$(cat <<EOJSON
-{
-  "PreToolUse": [
-    {
-      "matcher": "*",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${hook_binary}"
-        }
-      ]
-    }
-  ],
-  "SessionStart": [
-    {
-      "matcher": "compact",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${hook_binary} --on-compact"
-        }
-      ]
-    }
-  ]
-}
-EOJSON
-)
-
-    if _json_merge "$settings_file" "hooks" "$hooks_json"; then
-        log_info "Claude Code hooks configured in $settings_file"
-    fi
 }
 
 # ── Git Pre-commit Hook ──────────────────────────────────────────────────────
@@ -967,19 +381,6 @@ main() {
     # ── Ensure in PATH ────────────────────────────────────────────────────
     maybe_add_path
 
-    # ── Configure MCP providers ───────────────────────────────────────────
-    if [ "$NO_MCP" -eq 0 ]; then
-        configure_all_mcp_providers
-    fi
-
-    # ── Configure Claude Code hooks ───────────────────────────────────────
-    if [ "$NO_HOOKS" -eq 0 ]; then
-        configure_claude_hooks
-        configure_codex_hooks
-        configure_gemini_hooks
-        configure_amazonq_hooks
-    fi
-
     # ── Configure git pre-commit hook ─────────────────────────────────────
     if [ "$NO_GIT_HOOK" -eq 0 ]; then
         configure_git_hook
@@ -1000,52 +401,6 @@ main() {
     echo -e "  Configuration:          ${CYAN}~/.dynamic_context_pruning/config.jsonc${RESET}" >&2
     echo "" >&2
 
-    if [ "$NO_MCP" -eq 0 ]; then
-        echo -e "  ${BOLD}MCP Providers:${RESET}" >&2
-        echo -e "    Claude Code    ${GREEN}✓${RESET}  (~/.claude/settings.json + ~/.claude.json)" >&2
-        [ -d "$HOME/.config/Cursor" ] || [ -d "$HOME/Library/Application Support/Cursor" ] \
-            && echo -e "    Cursor         ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    Cursor         ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.cline" ] \
-            && echo -e "    Cline          ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    Cline          ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.codeium" ] \
-            && echo -e "    Windsurf       ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    Windsurf       ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.config/Code" ] || [ -d "$HOME/Library/Application Support/Code" ] \
-            && echo -e "    VS Code        ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    VS Code        ${DIM}—${RESET}" >&2
-        [ -f "$HOME/.opencode.json" ] || [ -d "$HOME/.config/opencode" ] \
-            && echo -e "    OpenCode       ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    OpenCode       ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.codex" ] \
-            && echo -e "    Codex CLI      ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    Codex CLI      ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.gemini" ] \
-            && echo -e "    Gemini CLI     ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    Gemini CLI     ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.aws/amazonq" ] \
-            && echo -e "    Amazon Q       ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    Amazon Q       ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.warp" ] \
-            && echo -e "    Warp           ${GREEN}✓${RESET}" >&2 \
-            || echo -e "    Warp           ${DIM}—${RESET}" >&2
-    fi
-
-    if [ "$NO_HOOKS" -eq 0 ]; then
-        echo "" >&2
-        echo -e "  ${BOLD}Hooks configured:${RESET}" >&2
-        echo -e "    Claude Code    ${GREEN}✓${RESET}  (PreToolUse + SessionStart)" >&2
-        [ -d "$HOME/.codex" ] \
-            && echo -e "    Codex CLI      ${GREEN}✓${RESET}  (PreToolUse + SessionStart)" >&2 \
-            || echo -e "    Codex CLI      ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.gemini" ] \
-            && echo -e "    Gemini CLI     ${GREEN}✓${RESET}  (BeforeTool + SessionStart)" >&2 \
-            || echo -e "    Gemini CLI     ${DIM}—${RESET}" >&2
-        [ -d "$HOME/.aws/amazonq" ] \
-            && echo -e "    Amazon Q       ${GREEN}✓${RESET}  (preToolUse + stop)" >&2 \
-            || echo -e "    Amazon Q       ${DIM}—${RESET}" >&2
-    fi
 
     echo "" >&2
     echo -e "  ${BOLD}Quick start:${RESET}" >&2

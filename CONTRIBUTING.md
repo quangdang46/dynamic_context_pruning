@@ -139,7 +139,6 @@ This is a Cargo workspace with 21 crates. Key crates:
 | `dcp-notification` | Notification formatting and delivery |
 | `dcp-cli` | CLI subcommands (stats, timeline, find-session, etc.) |
 | `dcp-core` | Core transform pipeline |
-| `dcp-mcp` | MCP server entry point |
 
 See `README.md` for the full architecture diagram.
 

@@ -36,14 +36,7 @@ tokenizers = ["dcp-core/tokenizers", "dcp-tokens/tokenizers"]
 tiktoken = ["dcp-core/tiktoken-fast", "dcp-tokens/tiktoken-fast"]
 claude = ["dcp-core/claude-tokens", "dcp-tokens/claude-tokens"]
 
-# Optional integrations — placeholders. The wiring lands in the
-# corresponding adapter crate (`adapters/dcp-rig`,
-# `adapters/dcp-hook`) and the optional MCP server (`bins/dcp-mcp`)
-# in a follow-up phase. Listing them here today keeps the public feature
-# surface stable so downstream callers can opt into the toggles without a
-# breaking change later.
-mcp = []
-claude-hook = []
+# Placeholder for future optional integrations.
 rig = []
 
 # Compression-quality / experimental research features (PLAN.md §5.3).
