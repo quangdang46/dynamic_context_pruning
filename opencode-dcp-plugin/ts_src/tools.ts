@@ -6,6 +6,8 @@ interface DcpPruner {
   handleCompress(argsJson: string, messagesJson: string): string
   decompress(blockId: number): string
   recompress(blockId: number): string
+  handleCommand(cmd: string, argsJson: string, messagesJson: string): string
+  notifyEvent(eventJson: string): void
   hasPendingWork(): boolean
   stats(): string
   setSessionId(sessionId: string): void

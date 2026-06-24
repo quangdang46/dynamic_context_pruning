@@ -1,7 +1,7 @@
 {
   "name": "@quangdang46/opencode-dcp-plugin",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
+  "private": false,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,9 +12,12 @@
     }
   },
   "scripts": {
-    "build": "cd .. && cargo build -p opencode-dcp-bridge && cp target/debug/libopencode_dcp_bridge.* opencode-dcp-plugin/",
-    "build:release": "cd .. && cargo build --release -p opencode-dcp-bridge && cp target/release/libopencode_dcp_bridge.* opencode-dcp-plugin/",
-    "typecheck": "tsc --noEmit"
+    "build": "cd .. && cargo build -p opencode-dcp-bridge && cp target/debug/libopencode_dcp_bridge.dylib opencode-dcp-plugin/opencode-dcp-bridge.darwin-arm64.node",
+    "build:release": "cd .. && cargo build --release -p opencode-dcp-bridge && cp target/release/libopencode_dcp_bridge.dylib opencode-dcp-plugin/opencode-dcp-bridge.darwin-arm64.node",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist && rm -f *.node",
+    "prepublishOnly": "npm run build:release && npx tsc",
+    "postpublish": "echo \"Published! Install with: opencode plugin add @quangdang46/opencode-dcp-plugin\""
   },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.4.3"
@@ -27,8 +30,31 @@
   },
   "files": [
     "dist/",
-    "*.node",
+    "opencode-dcp-bridge.*.node",
     "npm/",
     "README.md"
-  ]
+  ],
+  "description": "NAPI-RS native OpenCode plugin for Dynamic Context Pruning \u2014 intelligently manages conversation context to optimize token usage",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "context",
+    "pruning",
+    "dcp",
+    "tokens"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/quangdang46/dynamic_context_pruning",
+  "bugs": {
+    "url": "https://github.com/quangdang46/dynamic_context_pruning/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quangdang46/dynamic_context_pruning.git",
+    "directory": "opencode-dcp-plugin"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }

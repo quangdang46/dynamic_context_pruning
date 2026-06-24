@@ -2,10 +2,51 @@ use napi_derive::napi;
 use napi::bindgen_prelude::*;
 
 use crate::message;
+use dcp_core::commands::CommandOutcome;
+
+/// Convert camelCase JSON keys to snake_case for Rust deserialization.
+fn camel_to_snake(key: &str) -> String {
+    let mut result = String::with_capacity(key.len());
+    for (i, ch) in key.chars().enumerate() {
+        if ch.is_uppercase() {
+            if i > 0 {
+                result.push('_');
+            }
+            result.push(ch.to_ascii_lowercase());
+        } else {
+            result.push(ch);
+        }
+    }
+    result
+}
+
+/// Recursively convert all object keys in a JSON value from camelCase to snake_case.
+fn keys_to_snake(val: &mut serde_json::Value) {
+    match val {
+        serde_json::Value::Object(map) => {
+            let keys: Vec<String> = map.keys().cloned().collect();
+            for key in keys {
+                let snake = camel_to_snake(&key);
+                if let Some(mut v) = map.remove(&key) {
+                    keys_to_snake(&mut v);
+                    map.insert(snake, v);
+                }
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr.iter_mut() {
+                keys_to_snake(item);
+            }
+        }
+        _ => {}
+    }
+}
 
 fn parse_compress_args(json_str: &str) -> Result<dcp_core::CompressArgs> {
-    let val: serde_json::Value = serde_json::from_str(json_str)
+    let mut val: serde_json::Value = serde_json::from_str(json_str)
         .map_err(|e| Error::from_reason(format!("Args parse: {}", e)))?;
+    // Convert camelCase keys from TS/OpenCode to snake_case for Rust
+    keys_to_snake(&mut val);
 
     let mode = val.get("mode").and_then(|v| v.as_str()).unwrap_or("range");
     let topic = val
@@ -28,6 +69,64 @@ fn parse_compress_args(json_str: &str) -> Result<dcp_core::CompressArgs> {
             )
             .map_err(|e| Error::from_reason(format!("Content parse: {}", e)))?;
             Ok(dcp_core::CompressArgs::Range { topic, content })
+        }
+    }
+}
+
+/// Parse a JSON array of string arguments.
+fn parse_json_args(json_str: &str) -> Result<Vec<String>> {
+    let val: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| Error::from_reason(format!("Args JSON parse: {}", e)))?;
+    let arr = val.as_array()
+        .ok_or_else(|| Error::from_reason("args must be a JSON array of strings".to_string()))?;
+    let mut args = Vec::with_capacity(arr.len());
+    for v in arr {
+        args.push(v.as_str()
+            .ok_or_else(|| Error::from_reason("each arg must be a string".to_string()))?
+            .to_string());
+    }
+    Ok(args)
+}
+
+/// Format a CommandOutcome into user-facing text and status.
+fn format_command_outcome(outcome: &CommandOutcome) -> (String, &'static str) {
+    match outcome {
+        CommandOutcome::Context { current_turn, active_blocks, total_blocks, pending_tokens, frontier, cache_stability_mode } => {
+            let frontier_str = frontier.as_deref().unwrap_or("none");
+            (
+                format!(
+                    "**DCP Context**\n- Turn: {}\n- Active blocks: {}/{}\n- Pending tokens: {}\n- Frontier: {}\n- Cache stability: {}",
+                    current_turn, active_blocks, total_blocks, pending_tokens, frontier_str, cache_stability_mode
+                ),
+                "ok",
+            )
+        }
+        CommandOutcome::Stats(stats) => {
+            (serde_json::to_string_pretty(stats).unwrap_or_default(), "ok")
+        }
+        CommandOutcome::Sweep { applied_ids } => {
+            (format!("Sweep applied {} pending prune entries.", applied_ids), "ok")
+        }
+        CommandOutcome::Manual { enabled } => {
+            (format!("Manual mode {}.", if *enabled { "enabled" } else { "disabled" }), "ok")
+        }
+        CommandOutcome::Compress(result) => {
+            (format!("Compression complete: {} blocks created.", result.blocks.len()), "ok")
+        }
+        CommandOutcome::Decompress { block_id } => {
+            (format!("Decompressed block b{}.", block_id.0), "ok")
+        }
+        CommandOutcome::Recompress { block_id } => {
+            (format!("Recompressed block b{}.", block_id.0), "ok")
+        }
+        CommandOutcome::Unknown { command } => {
+            (format!("Unknown command: {}. Try context, stats, sweep, manual, compress, decompress, recompress.", command), "error")
+        }
+        CommandOutcome::Error { message } => {
+            (format!("Error: {}", message), "error")
+        }
+        _ => {
+            ("Command processed.".to_string(), "ok")
         }
     }
 }
@@ -130,6 +229,39 @@ impl DcpPruner {
         if let Ok(mut pruner) = self.inner.lock() {
             pruner.set_session_id(&session_id);
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Slash-command handling
+    // ──────────────────────────────────────────────────────────────
+
+    /// Handle a /dcp slash command.
+    /// cmd: the subcommand name (e.g. "context", "stats", "decompress")
+    /// args_json: JSON array of string arguments (e.g. '["b1"]')
+    /// messages_json: current messages as JSON array (for compress commands)
+    /// Returns JSON: {"text": "...", "status": "ok|error"}
+    #[napi]
+    pub fn handle_command(&self, cmd: String, args_json: String, messages_json: String) -> Result<String> {
+        let args = parse_json_args(&args_json)?;
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let messages = crate::message::opencode_to_dcp(&messages_json)
+            .map_err(|e| Error::from_reason(e))?;
+
+        let mut pruner = self.inner.lock()
+            .map_err(|_| Error::from_reason("mutex poisoned".to_string()))?;
+
+        let outcome = pruner.handle_command(&cmd, &args_refs, &messages);
+        let (text, status) = format_command_outcome(&outcome);
+        let result = serde_json::json!({ "text": text, "status": status });
+        Ok(result.to_string())
+    }
+
+    /// Notify the pruner of a lifecycle event (tool status updates, etc).
+    /// Currently a hook for future telemetry use; the pipeline tracks
+    /// events internally during transform_messages.
+    #[napi]
+    pub fn notify_event(&self, _event_json: String) -> Result<()> {
+        Ok(())
     }
 }
 
