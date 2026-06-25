@@ -1,6 +1,6 @@
 {
-  "name": "@quangdang46/opencode-dcp-plugin",
-  "version": "0.2.0",
+  "name": "@qdang46/opencode-dcp-plugin",
+  "version": "0.2.2",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist && rm -f *.node",
     "prepublishOnly": "npm run build:release && npx tsc",
-    "postpublish": "echo \"Published! Install with: opencode plugin add @quangdang46/opencode-dcp-plugin\""
+    "postpublish": "echo \"Published! Install with: opencode plugin add @qdang46/opencode-dcp-plugin\""
   },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.4.3"
