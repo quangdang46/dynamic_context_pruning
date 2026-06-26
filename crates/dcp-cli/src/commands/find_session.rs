@@ -1,5 +1,6 @@
 //! `find-session` subcommand — find sessions by pattern or date range.
 
+use chrono::NaiveDate;
 use clap::Parser;
 use dcp_storage::{FileStateStore, default_storage_dir};
 use dcp_traits::StatePersistence;
@@ -28,8 +29,8 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
         .list_sessions()
         .map_err(|e| anyhow::anyhow!("failed to list sessions: {}", e))?;
 
-    let after_timestamp = args.after.as_ref().and_then(|s| parse_date(s).ok());
-    let before_timestamp = args.before.as_ref().and_then(|s| parse_date(s).ok());
+    let after_timestamp: Option<i64> = args.after.as_ref().map(|s| parse_date(s)).transpose()?;
+    let before_timestamp: Option<i64> = args.before.as_ref().map(|s| parse_date(s)).transpose()?;
 
     let matching: Vec<&String> = all_sessions
         .iter()
@@ -141,12 +142,11 @@ fn parse_date(s: &str) -> anyhow::Result<i64> {
         .parse()
         .map_err(|_| anyhow::anyhow!("invalid day"))?;
 
-    if !(1..=12).contains(&month) {
-        anyhow::bail!("month must be between 1 and 12");
-    }
-    if !(1..=31).contains(&day) {
-        anyhow::bail!("day must be between 1 and 31");
-    }
+    // Validate using chrono::NaiveDate to reject invalid
+    // calendar dates (Feb 30, Apr 31, Feb 29 non-leap, etc.)
+    NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32).ok_or_else(|| {
+        anyhow::anyhow!("invalid date: year={} month={} day={}", year, month, day)
+    })?;
 
     let days = days_from_epoch(year, month, day);
     Ok(days * 86400)

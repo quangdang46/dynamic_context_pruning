@@ -117,7 +117,18 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
     let messages = db.get_session_messages(session_id)?;
 
     if messages.is_empty() {
-        println!("Session {} has no messages.", session_id);
+        if args.json {
+            let output = MessageTokensOutput {
+                session_id: session_id.clone(),
+                total_messages: 0,
+                total_tokens: 0,
+                entries: vec![],
+                top_5: vec![],
+            };
+            println!("{}", serde_json::to_string_pretty(&output)?);
+        } else {
+            println!("Session {} has no messages.", session_id);
+        }
         return Ok(());
     }
 
@@ -279,9 +290,10 @@ fn print_table(
     }
 }
 
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() > max_len {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
+fn truncate(s: &str, max_chars: usize) -> String {
+    if s.chars().count() > max_chars {
+        let truncated: String = s.chars().take(max_chars.saturating_sub(3)).collect();
+        format!("{}...", truncated)
     } else {
         s.to_string()
     }

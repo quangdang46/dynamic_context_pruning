@@ -17,12 +17,14 @@ path = "src/main.rs"
 dcp-core = { workspace = true }
 dcp-types = { workspace = true }
 dcp-config = { workspace = true }
+dcp-compress = { workspace = true }
 dcp-storage = { workspace = true }
 dcp-traits = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }
+chrono = { workspace = true }
 atty = "0.2"
 
 [dependencies.rusqlite]

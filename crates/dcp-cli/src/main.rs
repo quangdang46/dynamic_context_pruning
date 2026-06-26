@@ -348,8 +348,21 @@ fn handle_compress(pruner: &mut ContextPruner, file: Option<&str>) -> anyhow::Re
         eprintln!("no messages provided");
         anyhow::bail!("compress requires messages");
     }
-    match pruner.handle_command("compress", &[], &messages) {
-        CommandOutcome::Compress(result) => {
+    // Bypass the slash-command handler and call handle_compress directly
+    // with Message mode, compressing all provided messages as one batch.
+    let first = &messages[0];
+    let last = &messages[messages.len() - 1];
+    use dcp_compress::{CompressArgs, RangeEntry};
+    let cargs = CompressArgs::Range {
+        topic: "manual compress".to_string(),
+        content: vec![RangeEntry {
+            start_id: first.id.clone(),
+            end_id: last.id.clone(),
+            summary: "Manual compression from CLI".to_string(),
+        }],
+    };
+    match pruner.handle_compress(cargs, &messages) {
+        Ok(result) => {
             println!("=== Compress Result ===");
             println!("  Messages compressed:  {}", result.compressed_messages);
             println!("  Blocks committed:    {}", result.blocks.len());
@@ -363,13 +376,9 @@ fn handle_compress(pruner: &mut ContextPruner, file: Option<&str>) -> anyhow::Re
             }
             Ok(())
         }
-        CommandOutcome::Error { message } => {
-            eprintln!("compress error: {}", message);
+        Err(e) => {
+            eprintln!("compress error: {}", e);
             anyhow::bail!("compress failed");
-        }
-        other => {
-            eprintln!("unexpected outcome: {:?}", other);
-            anyhow::bail!("compress command failed");
         }
     }
 }

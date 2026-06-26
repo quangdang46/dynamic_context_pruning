@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use dcp_compress::{CompressArgs, CompressResult};
 use dcp_config::Config;
-use dcp_storage::{FileStateStore, default_storage_dir};
 use dcp_prompts::{PromptStore, Prompts};
+use dcp_storage::{FileStateStore, default_storage_dir};
 use dcp_telemetry::Telemetry;
 use dcp_traits::{
     CacheAccountant, MemoryRetriever, PruneStrategy, StatePersistence, Tokenizer,
@@ -774,8 +774,8 @@ impl ContextPrunerBuilder {
             .tokenizer
             .unwrap_or_else(|| Arc::new(Char4Tokenizer::new()));
 
-        let persistence: Arc<dyn StatePersistence> = if self.persistence.is_some() {
-            self.persistence.unwrap()
+        let persistence: Arc<dyn StatePersistence> = if let Some(p) = self.persistence {
+            p
         } else if config.persistence.enabled {
             let dir = config
                 .persistence
@@ -783,9 +783,7 @@ impl ContextPrunerBuilder {
                 .clone()
                 .map(PathBuf::from)
                 .unwrap_or_else(default_storage_dir);
-            Arc::new(
-                FileStateStore::new(dir).with_backup(config.persistence.keep_backup),
-            )
+            Arc::new(FileStateStore::new(dir).with_backup(config.persistence.keep_backup))
         } else {
             Arc::new(NoopStorage::new())
         };

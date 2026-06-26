@@ -64,8 +64,9 @@ pub fn run(args: &Args) -> anyhow::Result<()> {
             let mode_str = block.mode_as_str();
             let tokens_saved = block.compressed_tokens.saturating_sub(block.summary_tokens);
             let topic = block.topic.as_deref().unwrap_or("-");
-            let topic_short = if topic.len() > 12 {
-                format!("{}...", &topic[..9])
+            let topic_short = if topic.chars().count() > 12 {
+                let truncated: String = topic.chars().take(9).collect();
+                format!("{}...", truncated)
             } else {
                 topic.to_string()
             };
