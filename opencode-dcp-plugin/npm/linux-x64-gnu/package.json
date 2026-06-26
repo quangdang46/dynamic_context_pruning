@@ -1,0 +1,10 @@
+{
+  "name": "@qdang46/opencode-dcp-bridge-linux-x64-gnu",
+  "version": "0.2.2",
+  "description": "DCP native bridge for linux-x64-gnu",
+  "main": "opencode-dcp-bridge.linux-x64-gnu.node",
+  "license": "MIT",
+  "files": [
+    "opencode-dcp-bridge.linux-x64-gnu.node"
+  ]
+}

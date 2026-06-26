@@ -146,7 +146,6 @@ pub enum NotificationKind {
     Toast,
 }
 
-
 /// Tokenizer selection (SPEC.md §10.2 -- `tokenizer.kind`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum TokenizerKind {
@@ -299,10 +298,7 @@ mod tests {
             serde_json::to_string(&TokenizerKind::Tiktoken).unwrap(),
             "\"tiktoken\""
         );
-        assert_eq!(
-            serde_json::to_string(&TokenizerKind::Hf).unwrap(),
-            "\"hf\""
-        );
+        assert_eq!(serde_json::to_string(&TokenizerKind::Hf).unwrap(), "\"hf\"");
         assert_eq!(
             serde_json::to_string(&TokenizerKind::Claude).unwrap(),
             "\"claude\""
@@ -312,7 +308,6 @@ mod tests {
             "\"custom\""
         );
     }
-
 
     #[test]
     fn cache_stability_mode_reexport_default() {

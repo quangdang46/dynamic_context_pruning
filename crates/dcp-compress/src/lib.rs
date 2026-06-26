@@ -55,6 +55,6 @@ pub use validate::{validate_non_overlapping, validate_topic_and_content};
 pub use wrap::{
     PROTECTED_USER_TRUNCATE_BYTES, append_protected_tag_content, append_protected_tool_outputs,
     append_protected_user_messages, compute_effective, compute_included,
-    extract_protected_tag_sections, estimate_compressed_tokens, estimate_summary_tokens,
+    estimate_compressed_tokens, estimate_summary_tokens, extract_protected_tag_sections,
     maybe_buffer_summary, wrap_compressed_summary,
 };

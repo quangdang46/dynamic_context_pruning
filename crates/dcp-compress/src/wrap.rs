@@ -176,10 +176,7 @@ pub fn extract_protected_tag_sections(text: &str) -> Vec<String> {
 ///
 /// When `true`, return `inner` unchanged so the prompt-engineering
 /// append step sees the buffered form.
-pub fn maybe_buffer_summary<C: CompressConfig + ?Sized>(
-    inner: &str,
-    config: &C,
-) -> String {
+pub fn maybe_buffer_summary<C: CompressConfig + ?Sized>(inner: &str, config: &C) -> String {
     if config.summary_buffer() {
         return inner.to_string();
     }
@@ -558,7 +555,11 @@ mod tests {
     #[test]
     fn append_protected_tag_content_disabled_by_default() {
         let cfg = StaticCompressConfig::defaults();
-        let messages = vec![Message::user_text("u1", 0, "<dcp-protected>secret</dcp-protected>")];
+        let messages = vec![Message::user_text(
+            "u1",
+            0,
+            "<dcp-protected>secret</dcp-protected>",
+        )];
         let plan = ResolvedRange {
             start_raw: "u1".into(),
             end_raw: "u1".into(),
@@ -578,8 +579,11 @@ mod tests {
             protect_tags: true,
             ..StaticCompressConfig::defaults()
         };
-        let messages =
-            vec![Message::user_text("u1", 0, "before <dcp-protected>secret</dcp-protected> after")];
+        let messages = vec![Message::user_text(
+            "u1",
+            0,
+            "before <dcp-protected>secret</dcp-protected> after",
+        )];
         let plan = ResolvedRange {
             start_raw: "u1".into(),
             end_raw: "u1".into(),

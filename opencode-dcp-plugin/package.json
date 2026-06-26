@@ -1,6 +1,6 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -34,7 +34,7 @@
     "npm/",
     "README.md"
   ],
-  "description": "NAPI-RS native OpenCode plugin for Dynamic Context Pruning \u2014 intelligently manages conversation context to optimize token usage",
+  "description": "NAPI-RS native OpenCode plugin for Dynamic Context Pruning — intelligently manages conversation context to optimize token usage",
   "keywords": [
     "opencode",
     "opencode-plugin",
@@ -56,5 +56,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@qdang46/opencode-dcp-bridge-darwin-arm64": "0.2.2"
   }
 }

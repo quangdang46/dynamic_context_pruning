@@ -2,8 +2,8 @@ use dcp_types::{Message, Part, Role, ToolStatus};
 
 /// Convert OpenCode-format messages (JSON array of {info, parts}) to DCP Messages.
 pub fn opencode_to_dcp(json_str: &str) -> Result<Vec<Message>, String> {
-    let opencode_messages: Vec<serde_json::Value> = serde_json::from_str(json_str)
-        .map_err(|e| format!("JSON parse: {}", e))?;
+    let opencode_messages: Vec<serde_json::Value> =
+        serde_json::from_str(json_str).map_err(|e| format!("JSON parse: {}", e))?;
 
     let mut messages = Vec::new();
     for msg_val in &opencode_messages {
@@ -18,10 +18,7 @@ pub fn opencode_to_dcp(json_str: &str) -> Result<Vec<Message>, String> {
             .and_then(|v| v.as_str())
             .unwrap_or("0")
             .to_string();
-        let role_str = info
-            .get("role")
-            .and_then(|v| v.as_str())
-            .unwrap_or("user");
+        let role_str = info.get("role").and_then(|v| v.as_str()).unwrap_or("user");
         let role = match role_str {
             "user" => Role::User,
             "assistant" => Role::Assistant,
@@ -29,8 +26,10 @@ pub fn opencode_to_dcp(json_str: &str) -> Result<Vec<Message>, String> {
             _ => Role::User,
         };
         let time = info
-            .get("timestamp")
+            .get("time")
+            .and_then(|t| t.get("created"))
             .and_then(|v| v.as_i64())
+            .or_else(|| info.get("timestamp").and_then(|v| v.as_i64()))
             .unwrap_or(0);
 
         let mut dcp_parts = Vec::new();
@@ -141,8 +140,7 @@ pub fn dcp_to_opencode(messages: &[Message]) -> Result<String, String> {
         }));
     }
 
-    serde_json::to_string(&result)
-        .map_err(|e| format!("JSON serialize: {}", e))
+    serde_json::to_string(&result).map_err(|e| format!("JSON serialize: {}", e))
 }
 
 fn part_to_json(part: &Part) -> serde_json::Value {
@@ -187,10 +185,7 @@ fn part_to_json(part: &Part) -> serde_json::Value {
             }
             obj
         }
-        Part::Image {
-            media_type,
-            data,
-        } => serde_json::json!({
+        Part::Image { media_type, data } => serde_json::json!({
             "type": "image",
             "media_type": media_type,
             "data": data

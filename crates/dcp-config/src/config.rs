@@ -14,8 +14,7 @@ use crate::enums::{CacheStabilityMode, CacheStabilityModeSchema, InjectionMode, 
 use crate::error::ConfigError;
 use crate::sub_configs::{
     CommandsConfig, CompressConfig, ExperimentalConfig, ManualModeConfig, NotificationConfig,
-    PersistenceConfig, TokenizerConfig,
-    StrategiesConfig, TurnProtectionConfig,
+    PersistenceConfig, StrategiesConfig, TokenizerConfig, TurnProtectionConfig,
 };
 
 // ============================================================================

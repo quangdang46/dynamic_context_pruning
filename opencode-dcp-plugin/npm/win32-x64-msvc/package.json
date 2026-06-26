@@ -1,0 +1,10 @@
+{
+  "name": "@qdang46/opencode-dcp-bridge-win32-x64-msvc",
+  "version": "0.2.2",
+  "description": "DCP native bridge for win32-x64-msvc",
+  "main": "opencode-dcp-bridge.win32-x64-msvc.node",
+  "license": "MIT",
+  "files": [
+    "opencode-dcp-bridge.win32-x64-msvc.node"
+  ]
+}

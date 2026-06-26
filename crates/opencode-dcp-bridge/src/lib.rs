@@ -1,5 +1,5 @@
-mod pruner;
 mod message;
+mod pruner;
 
 pub use pruner::DcpPruner;
 

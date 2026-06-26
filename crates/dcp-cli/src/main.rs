@@ -139,7 +139,14 @@ fn read_messages(path: Option<&str>) -> anyhow::Result<Vec<Message>> {
         buf
     };
     let json: JsonValue = serde_json::from_str(&content).with_context(|| "failed to parse JSON")?;
-    let arr = json.as_array().cloned().unwrap_or_default();
+    // Accept both a JSON array of messages and a single message object.
+    let arr = match json.as_array() {
+        Some(a) => a.clone(),
+        None => json
+            .as_object()
+            .map(|_| vec![json.clone()])
+            .unwrap_or_default(),
+    };
     let mut messages = Vec::new();
     for (i, v) in arr.iter().enumerate() {
         if let Some(obj) = v.as_object() {
@@ -348,10 +355,15 @@ fn handle_compress(pruner: &mut ContextPruner, file: Option<&str>) -> anyhow::Re
         eprintln!("no messages provided");
         anyhow::bail!("compress requires messages");
     }
-    // Bypass the slash-command handler and call handle_compress directly
-    // with Message mode, compressing all provided messages as one batch.
-    let first = &messages[0];
-    let last = &messages[messages.len() - 1];
+    // Transform messages through the pruner first so message IDs are
+    // registered in session state, allowing the resolver to find them.
+    let transformed = pruner.transform_messages(messages)?;
+    if transformed.is_empty() {
+        eprintln!("all messages were pruned, nothing to compress");
+        return Ok(());
+    }
+    let first = &transformed[0];
+    let last = &transformed[transformed.len() - 1];
     use dcp_compress::{CompressArgs, RangeEntry};
     let cargs = CompressArgs::Range {
         topic: "manual compress".to_string(),
@@ -361,7 +373,7 @@ fn handle_compress(pruner: &mut ContextPruner, file: Option<&str>) -> anyhow::Re
             summary: "Manual compression from CLI".to_string(),
         }],
     };
-    match pruner.handle_compress(cargs, &messages) {
+    match pruner.handle_compress(cargs, &transformed) {
         Ok(result) => {
             println!("=== Compress Result ===");
             println!("  Messages compressed:  {}", result.compressed_messages);

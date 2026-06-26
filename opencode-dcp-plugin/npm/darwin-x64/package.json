@@ -1,0 +1,10 @@
+{
+  "name": "@qdang46/opencode-dcp-bridge-darwin-x64",
+  "version": "0.2.2",
+  "description": "DCP native bridge for darwin-x64",
+  "main": "opencode-dcp-bridge.darwin-x64.node",
+  "license": "MIT",
+  "files": [
+    "opencode-dcp-bridge.darwin-x64.node"
+  ]
+}

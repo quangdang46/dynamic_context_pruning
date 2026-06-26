@@ -128,24 +128,36 @@ fn matches_glob_inner(text: &[char], ti: usize, pattern: &[char], pi: usize) -> 
 
 fn parse_date(s: &str) -> anyhow::Result<i64> {
     let parts: Vec<&str> = s.split('-').collect();
-    if parts.len() != 3 {
-        anyhow::bail!("date must be in YYYY-MM-DD format");
+    if parts.len() != 3
+        || parts
+            .iter()
+            .any(|p| p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit()))
+    {
+        anyhow::bail!("invalid date format '{}', expected YYYY-MM-DD", s);
     }
 
     let year: i64 = parts[0]
         .parse()
-        .map_err(|_| anyhow::anyhow!("invalid year"))?;
+        .map_err(|_| anyhow::anyhow!("invalid year in '{}'", s))?;
     let month: u8 = parts[1]
         .parse()
-        .map_err(|_| anyhow::anyhow!("invalid month"))?;
+        .map_err(|_| anyhow::anyhow!("invalid month in '{}'", s))?;
     let day: u8 = parts[2]
         .parse()
-        .map_err(|_| anyhow::anyhow!("invalid day"))?;
+        .map_err(|_| anyhow::anyhow!("invalid day in '{}'", s))?;
 
     // Validate using chrono::NaiveDate to reject invalid
     // calendar dates (Feb 30, Apr 31, Feb 29 non-leap, etc.)
     NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32).ok_or_else(|| {
-        anyhow::anyhow!("invalid date: year={} month={} day={}", year, month, day)
+        anyhow::anyhow!(
+            "invalid date: year={} month={} day={} ({}-{:02}-{:02} is not a valid calendar date)",
+            year,
+            month,
+            day,
+            year,
+            month,
+            day
+        )
     })?;
 
     let days = days_from_epoch(year, month, day);
@@ -176,8 +188,9 @@ fn extract_last_updated(persisted: &dcp_traits::PersistedState) -> i64 {
     match persisted {
         dcp_traits::PersistedState::V1(v1) => {
             let ts = v1.last_updated.trim();
-            if ts.len() >= 10 {
-                parse_date(&ts[..10]).unwrap_or(0)
+            if ts.chars().count() >= 10 {
+                let truncated: String = ts.chars().take(10).collect();
+                parse_date(&truncated).unwrap_or(0)
             } else {
                 0
             }

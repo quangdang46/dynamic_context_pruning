@@ -652,9 +652,7 @@ fn apply_to_text_part(msg: &mut Message, text: &str, mode: InjectionMode) {
         match mode {
             InjectionMode::WrapBlock => {
                 // Wrap the nudge in `<dcp-nudge>` tags per SPEC.md §8.
-                let tagged = format!(
-                    "<dcp-nudge kind=\"nudge\">\n{trimmed}\n</dcp-nudge>"
-                );
+                let tagged = format!("<dcp-nudge kind=\"nudge\">\n{trimmed}\n</dcp-nudge>");
                 if part.is_empty() {
                     *part = tagged;
                 } else {
@@ -1532,10 +1530,7 @@ mod tests {
 
     #[test]
     fn injection_mode_serde_roundtrip() {
-        for m in [
-            InjectionMode::WrapBlock,
-            InjectionMode::AppendText,
-        ] {
+        for m in [InjectionMode::WrapBlock, InjectionMode::AppendText] {
             let s = serde_json::to_string(&m).unwrap();
             let back: InjectionMode = serde_json::from_str(&s).unwrap();
             assert_eq!(m, back);

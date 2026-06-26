@@ -1,5 +1,5 @@
-use napi_derive::napi;
 use napi::bindgen_prelude::*;
+use napi_derive::napi;
 
 use crate::message;
 use dcp_core::commands::CommandOutcome;
@@ -58,14 +58,18 @@ fn parse_compress_args(json_str: &str) -> Result<dcp_core::CompressArgs> {
     match mode {
         "message" => {
             let content: Vec<dcp_core::MessageEntry> = serde_json::from_value(
-                val.get("content").cloned().unwrap_or(serde_json::Value::Array(vec![])),
+                val.get("content")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Array(vec![])),
             )
             .map_err(|e| Error::from_reason(format!("Content parse: {}", e)))?;
             Ok(dcp_core::CompressArgs::Message { topic, content })
         }
         _ => {
             let content: Vec<dcp_core::RangeEntry> = serde_json::from_value(
-                val.get("content").cloned().unwrap_or(serde_json::Value::Array(vec![])),
+                val.get("content")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Array(vec![])),
             )
             .map_err(|e| Error::from_reason(format!("Content parse: {}", e)))?;
             Ok(dcp_core::CompressArgs::Range { topic, content })
@@ -77,13 +81,16 @@ fn parse_compress_args(json_str: &str) -> Result<dcp_core::CompressArgs> {
 fn parse_json_args(json_str: &str) -> Result<Vec<String>> {
     let val: serde_json::Value = serde_json::from_str(json_str)
         .map_err(|e| Error::from_reason(format!("Args JSON parse: {}", e)))?;
-    let arr = val.as_array()
+    let arr = val
+        .as_array()
         .ok_or_else(|| Error::from_reason("args must be a JSON array of strings".to_string()))?;
     let mut args = Vec::with_capacity(arr.len());
     for v in arr {
-        args.push(v.as_str()
-            .ok_or_else(|| Error::from_reason("each arg must be a string".to_string()))?
-            .to_string());
+        args.push(
+            v.as_str()
+                .ok_or_else(|| Error::from_reason("each arg must be a string".to_string()))?
+                .to_string(),
+        );
     }
     Ok(args)
 }
@@ -91,43 +98,65 @@ fn parse_json_args(json_str: &str) -> Result<Vec<String>> {
 /// Format a CommandOutcome into user-facing text and status.
 fn format_command_outcome(outcome: &CommandOutcome) -> (String, &'static str) {
     match outcome {
-        CommandOutcome::Context { current_turn, active_blocks, total_blocks, pending_tokens, frontier, cache_stability_mode } => {
+        CommandOutcome::Context {
+            current_turn,
+            active_blocks,
+            total_blocks,
+            pending_tokens,
+            frontier,
+            cache_stability_mode,
+        } => {
             let frontier_str = frontier.as_deref().unwrap_or("none");
             (
                 format!(
                     "**DCP Context**\n- Turn: {}\n- Active blocks: {}/{}\n- Pending tokens: {}\n- Frontier: {}\n- Cache stability: {}",
-                    current_turn, active_blocks, total_blocks, pending_tokens, frontier_str, cache_stability_mode
+                    current_turn,
+                    active_blocks,
+                    total_blocks,
+                    pending_tokens,
+                    frontier_str,
+                    cache_stability_mode
                 ),
                 "ok",
             )
         }
-        CommandOutcome::Stats(stats) => {
-            (serde_json::to_string_pretty(stats).unwrap_or_default(), "ok")
-        }
-        CommandOutcome::Sweep { applied_ids } => {
-            (format!("Sweep applied {} pending prune entries.", applied_ids), "ok")
-        }
-        CommandOutcome::Manual { enabled } => {
-            (format!("Manual mode {}.", if *enabled { "enabled" } else { "disabled" }), "ok")
-        }
-        CommandOutcome::Compress(result) => {
-            (format!("Compression complete: {} blocks created.", result.blocks.len()), "ok")
-        }
+        CommandOutcome::Stats(stats) => (
+            serde_json::to_string_pretty(stats).unwrap_or_default(),
+            "ok",
+        ),
+        CommandOutcome::Sweep { applied_ids } => (
+            format!("Sweep applied {} pending prune entries.", applied_ids),
+            "ok",
+        ),
+        CommandOutcome::Manual { enabled } => (
+            format!(
+                "Manual mode {}.",
+                if *enabled { "enabled" } else { "disabled" }
+            ),
+            "ok",
+        ),
+        CommandOutcome::Compress(result) => (
+            format!(
+                "Compression complete: {} blocks created.",
+                result.blocks.len()
+            ),
+            "ok",
+        ),
         CommandOutcome::Decompress { block_id } => {
             (format!("Decompressed block b{}.", block_id.0), "ok")
         }
         CommandOutcome::Recompress { block_id } => {
             (format!("Recompressed block b{}.", block_id.0), "ok")
         }
-        CommandOutcome::Unknown { command } => {
-            (format!("Unknown command: {}. Try context, stats, sweep, manual, compress, decompress, recompress.", command), "error")
-        }
-        CommandOutcome::Error { message } => {
-            (format!("Error: {}", message), "error")
-        }
-        _ => {
-            ("Command processed.".to_string(), "ok")
-        }
+        CommandOutcome::Unknown { command } => (
+            format!(
+                "Unknown command: {}. Try context, stats, sweep, manual, compress, decompress, recompress.",
+                command
+            ),
+            "error",
+        ),
+        CommandOutcome::Error { message } => (format!("Error: {}", message), "error"),
+        _ => ("Command processed.".to_string(), "ok"),
     }
 }
 
@@ -145,7 +174,9 @@ impl DcpPruner {
         let pruner = dcp_core::ContextPruner::new(config)
             .map_err(|e| Error::from_reason(format!("Pruner init: {}", e)))?;
         let _ = pruner.save();
-        Ok(Self { inner: std::sync::Mutex::new(pruner) })
+        Ok(Self {
+            inner: std::sync::Mutex::new(pruner),
+        })
     }
 
     /// Transform messages before sending to the LLM.
@@ -153,14 +184,16 @@ impl DcpPruner {
     /// Output: JSON array of transformed OpenCode format messages.
     #[napi]
     pub fn transform_messages(&self, messages_json: String) -> Result<String> {
-        let messages = message::opencode_to_dcp(&messages_json)
-            .map_err(|e| Error::from_reason(e))?;
-        let mut pruner = self.inner.lock()
+        let messages =
+            message::opencode_to_dcp(&messages_json).map_err(|e| Error::from_reason(e))?;
+        let mut pruner = self
+            .inner
+            .lock()
             .map_err(|_| Error::from_reason("mutex poisoned".to_string()))?;
-        let result = pruner.transform_messages(messages)
+        let result = pruner
+            .transform_messages(messages)
             .map_err(|e| Error::from_reason(format!("Transform: {}", e)))?;
-        message::dcp_to_opencode(&result)
-            .map_err(|e| Error::from_reason(e))
+        message::dcp_to_opencode(&result).map_err(|e| Error::from_reason(e))
     }
 
     /// Append DCP system prompt addendum.
@@ -178,41 +211,50 @@ impl DcpPruner {
     #[napi]
     pub fn handle_compress(&self, args_json: String, messages_json: String) -> Result<String> {
         let args = parse_compress_args(&args_json)?;
-        let messages = message::opencode_to_dcp(&messages_json)
-            .map_err(|e| Error::from_reason(e))?;
-        let mut pruner = self.inner.lock()
+        let messages =
+            message::opencode_to_dcp(&messages_json).map_err(|e| Error::from_reason(e))?;
+        let mut pruner = self
+            .inner
+            .lock()
             .map_err(|_| Error::from_reason("mutex poisoned".to_string()))?;
-        let result = pruner.handle_compress(args, &messages)
+        let result = pruner
+            .handle_compress(args, &messages)
             .map_err(|e| Error::from_reason(format!("Compress: {}", e)))?;
-        serde_json::to_string(&result)
-            .map_err(|e| Error::from_reason(format!("Serialize: {}", e)))
+        serde_json::to_string(&result).map_err(|e| Error::from_reason(format!("Serialize: {}", e)))
     }
 
     /// Restore a compressed block to its original messages.
     #[napi]
     pub fn decompress(&self, block_id: u32) -> Result<String> {
-        let mut pruner = self.inner.lock()
+        let mut pruner = self
+            .inner
+            .lock()
             .map_err(|_| Error::from_reason("mutex poisoned".to_string()))?;
-        let result = pruner.decompress(dcp_types::BlockId(block_id))
+        let result = pruner
+            .decompress(dcp_types::BlockId(block_id))
             .map_err(|e| Error::from_reason(format!("Decompress: {}", e)))?;
-        serde_json::to_string(&result)
-            .map_err(|e| Error::from_reason(format!("Serialize: {}", e)))
+        serde_json::to_string(&result).map_err(|e| Error::from_reason(format!("Serialize: {}", e)))
     }
 
     /// Re-activate a user-decompressed block for future compression.
     #[napi]
     pub fn recompress(&self, block_id: u32) -> Result<String> {
-        let mut pruner = self.inner.lock()
+        let mut pruner = self
+            .inner
+            .lock()
             .map_err(|_| Error::from_reason("mutex poisoned".to_string()))?;
-        let result = pruner.recompress(dcp_types::BlockId(block_id))
+        let result = pruner
+            .recompress(dcp_types::BlockId(block_id))
             .map_err(|e| Error::from_reason(format!("Recompress: {}", e)))?;
-        serde_json::to_string(&result)
-            .map_err(|e| Error::from_reason(format!("Serialize: {}", e)))
+        serde_json::to_string(&result).map_err(|e| Error::from_reason(format!("Serialize: {}", e)))
     }
 
     #[napi]
     pub fn has_pending_work(&self) -> bool {
-        self.inner.lock().map(|p| p.has_pending_work()).unwrap_or(false)
+        self.inner
+            .lock()
+            .map(|p| p.has_pending_work())
+            .unwrap_or(false)
     }
 
     #[napi]
@@ -241,13 +283,20 @@ impl DcpPruner {
     /// messages_json: current messages as JSON array (for compress commands)
     /// Returns JSON: {"text": "...", "status": "ok|error"}
     #[napi]
-    pub fn handle_command(&self, cmd: String, args_json: String, messages_json: String) -> Result<String> {
+    pub fn handle_command(
+        &self,
+        cmd: String,
+        args_json: String,
+        messages_json: String,
+    ) -> Result<String> {
         let args = parse_json_args(&args_json)?;
         let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let messages = crate::message::opencode_to_dcp(&messages_json)
-            .map_err(|e| Error::from_reason(e))?;
+        let messages =
+            crate::message::opencode_to_dcp(&messages_json).map_err(|e| Error::from_reason(e))?;
 
-        let mut pruner = self.inner.lock()
+        let mut pruner = self
+            .inner
+            .lock()
             .map_err(|_| Error::from_reason("mutex poisoned".to_string()))?;
 
         let outcome = pruner.handle_command(&cmd, &args_refs, &messages);

@@ -311,8 +311,6 @@ impl Default for PersistenceConfig {
     }
 }
 
-
-
 // ----------------------------------------------------------------------------
 // tokenizer
 // ----------------------------------------------------------------------------
@@ -448,7 +446,6 @@ mod tests {
         let t: TokenizerConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(t, TokenizerConfig::default());
     }
-
 
     #[test]
     fn camel_case_keys_round_trip() {

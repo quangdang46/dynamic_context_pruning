@@ -28,12 +28,25 @@ interface BridgeExports {
 
 function loadBridge(): BridgeExports {
   const root = resolve(__dirname, "..")
-  const candidates = [
+
+  // Try platform-specific npm packages first (for proper NAPI-RS distribution)
+  const platformCandidates = [
+    join(root, "npm", "darwin-arm64", "opencode-dcp-bridge.darwin-arm64.node"),
+    join(root, "npm", "darwin-x64", "opencode-dcp-bridge.darwin-x64.node"),
+    join(root, "npm", "linux-x64-gnu", "opencode-dcp-bridge.linux-x64-gnu.node"),
+    join(root, "npm", "win32-x64-msvc", "opencode-dcp-bridge.win32-x64-msvc.node"),
+  ]
+
+  // Also try root-level .node files (for development / single-platform builds)
+  const rootCandidates = [
     join(root, "opencode-dcp-bridge.darwin-arm64.node"),
     join(root, "opencode-dcp-bridge.darwin-x64.node"),
     join(root, "opencode-dcp-bridge.linux-x64-gnu.node"),
     join(root, "opencode-dcp-bridge.win32-x64-msvc.node"),
   ]
+
+  const candidates = [...platformCandidates, ...rootCandidates]
+
   for (const name of candidates) {
     try {
       return _require(name) as BridgeExports
@@ -125,7 +138,7 @@ const createPlugin: Plugin = async (_ctx: PluginInput) => {
             output.parts.push({
               type: "text",
               text: formatHelpText(),
-              id: `dcp-${Date.now()}`,
+              id: `prt-${Date.now()}`,
               sessionID: input.sessionID,
               messageID: `cmd-${Date.now()}`,
               synthetic: true,
@@ -143,7 +156,7 @@ const createPlugin: Plugin = async (_ctx: PluginInput) => {
             text: result.status === "ok"
               ? result.text
               : `⚠️ ${result.text}`,
-            id: `dcp-${Date.now()}`,
+            id: `prt-${Date.now()}`,
             sessionID: input.sessionID,
             messageID: `cmd-${Date.now()}`,
             synthetic: true,
