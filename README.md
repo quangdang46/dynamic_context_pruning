@@ -12,9 +12,31 @@
 
 ## What is this?
 
-Dynamic Context Pruning (DCP) reduces token usage in LLM coding agent sessions through a combination of **deterministic strategies** (deduplication, error purging, stale file read removal) and **LLM-driven compression**. It manages session state, tracks compression blocks for cache stability, and exposes pruning capabilities via CLI and direct library embedding.
+Dynamic Context Pruning (DCP) reduces token usage in LLM coding agent sessions through a combination of **deterministic strategies** (deduplication, error purging, stale file read removal) and **LLM-driven compression**. It manages session state, tracks compression blocks for cache stability, and exposes pruning capabilities via CLI, direct library embedding, and an [OpenCode](https://github.com/anomalyco/opencode) plugin.
 
 Built as a modular Rust workspace with 19 crates — each responsible for a distinct capability (token counting, persistence, configuration cascading, telemetry, permissions, notifications, and more).
+
+## OpenCode Plugin
+
+Install the DCP plugin for OpenCode in one command:
+
+```bash
+opencode plugin @qdang46/opencode-dcp-plugin@latest --global
+```
+
+Restart OpenCode and use `/dcp` to open the DCP panel. The plugin automatically prunes, deduplicates, and compresses conversation context in real time.
+
+| Slash Command | Description |
+|---|---|
+| `/dcp` | Open the DCP panel |
+| `/dcp context` | Show token usage breakdown |
+| `/dcp stats` | Show pruning statistics |
+| `/dcp sweep` | Flush pending prune strategies |
+| `/dcp decompress <id>` | Restore a compressed block |
+| `/dcp recompress <id>` | Re-activate a decompressed block |
+| `/dcp-compress [focus]` | Trigger manual compression |
+
+Built with [@qdang46/opencode-dcp-plugin](https://www.npmjs.com/package/@qdang46/opencode-dcp-plugin) — a NAPI-RS native addon + TypeScript plugin, forked from [@tarquinen/opencode-dcp](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning).
 
 ## Architecture
 
