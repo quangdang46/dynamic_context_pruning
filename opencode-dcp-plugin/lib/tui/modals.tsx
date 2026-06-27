@@ -1,52 +1,58 @@
 // @ts-nocheck
 /* @jsxImportSource @opentui/solid */
-/* ───────────────────────────────────────
+/* ───────────────────────────────────────────
  *   lib/tui/modals.tsx — modal open functions
  *
- *   openPanelModal     — show main DCP panel
- *   openContextModal   — show context analysis panel
- *   openStatsModal     — show pruning stats panel
- *   openCommandDialog  — show a single command description
- * ─────────────────────────────────────── */
+ *   openPanelModal     — show the main DCP overview
+ *   openContextModal   — show context / token analysis
+ *   openStatsModal     — show pruning statistics
+ *   openCommandDialog  — show a single command overview
+ * ─────────────────────────────────────────── */
 
-import { TuiApi } from "./types.js"
+import { TextAttributes } from "@opentui/core"
+import type { TuiApi } from "./types.js"
 import { PanelDialog, ContextDialog, StatsDialog } from "./dialogs.jsx"
 import { DcpFrame, FooterButton } from "./ui.jsx"
 
-/* ─── Top-level dialog openers ────────── */
+/* ─── Top-level dialog openers ────────────── */
 
+/** Open the main DCP panel overview. */
 export async function openPanelModal(api: TuiApi): Promise<void> {
   await api.ui.dialog.replace(PanelDialog(api))
 }
 
+/** Open the context analysis panel with token breakdown. */
 export async function openContextModal(api: TuiApi): Promise<void> {
   await api.ui.dialog.replace(ContextDialog(api))
 }
 
+/** Open the pruning statistics panel. */
 export async function openStatsModal(api: TuiApi): Promise<void> {
   await api.ui.dialog.replace(StatsDialog(api))
 }
 
-/* ─── Single-command info dialog ───────── */
+/* ─── Single-command info dialog ──────────── */
 
+/**
+ * Open a small dialog that shows a single command
+ * and its description, with a "Back" button.
+ */
 export async function openCommandDialog(
   api: TuiApi,
-  command: any,
-  description: any,
+  command: string,
+  description: string,
 ): Promise<void> {
-  const fg = (k: any) => api.theme?.current?.[k] ?? "#fff"
+  const fg = (k: string): string =>
+    ((api.theme?.current ?? {}) as Record<string, string>)[k] ?? "#ffffff"
 
   await api.ui.dialog.replace(
     <DcpFrame api={api} title={command}>
       <text fg={fg("textMuted")} size="small">
         {description}
       </text>
-      <text fg={fg("text")} size="small">
-        Run this command directly in the chat by typing: {command}
+      <text fg={fg("text")} size="small" attributes={TextAttributes.BOLD}>
+        Run this command in the chat: {command}
       </text>
-      <box justifyContent="flexEnd" gap={1}>
-        <FooterButton api={api} label="Back" variant="muted" />
-      </box>
     </DcpFrame>,
   )
 }

@@ -27,7 +27,7 @@ interface BridgeExports {
 }
 
 function loadBridge(): BridgeExports {
-  const root = resolve(__dirname, "..")
+  const root = resolve(__dirname, "../..")
   const platformCandidates = [
     join(root, "npm", "darwin-arm64", "opencode-dcp-bridge.darwin-arm64.node"),
     join(root, "npm", "darwin-x64", "opencode-dcp-bridge.darwin-x64.node"),
@@ -129,27 +129,56 @@ const createPlugin: Plugin = async (ctx: PluginInput) => {
     // ─── Slash commands ──────────────────────────────────────────
     "command.execute.before": async (input, output) => {
       try {
-        const cmd = input.command.replace(/^\//, "").split(/\s+/)[0]
+        const full = input.command.replace(/^\//, "")
+        const parts = full.split(/\s+/)
+        const cmd = parts[0]
         if (cmd !== "dcp" && cmd !== "dcp-compress") return
 
-        const parts = input.command.split(/\s+/)
         const subcommand = parts.length > 1 ? parts[1] : "help"
         const args = parts.slice(2)
 
+        // /dcp-compress [focus] — inject a manual-compress prompt into
+        // output.parts so the model sees it and runs the compress tool.
+        if (cmd === "dcp-compress" || subcommand === "compress") {
+          const focus = args.join(" ") || ""
+          const prompt =
+            "<dcp-manual-compress>\nManual compression triggered" +
+            (focus ? " (focus: " + focus + ")" : "") +
+            ".\nPlease use the compress tool to compress stale conversation content.\n</dcp-manual-compress>"
+
+          // Replace the first text part with the prompt so the model
+          // sees it as a user message.
+          const textIdx = (output.parts as any).findIndex((p: any) => p.type === "text")
+          if (textIdx >= 0) {
+            ;(output.parts as any)[textIdx].text = prompt
+          } else {
+            ;(output.parts as any).unshift({ type: "text", text: prompt })
+          }
+          return
+        }
+
+        // All other subcommands — reply via session.prompt.
         let replyText: string
         if (subcommand === "help") {
           replyText = formatHelpText()
         } else {
-          const actualCmd = cmd === "dcp-compress" ? "compress" : subcommand
-          const resultJson = pruner.handleCommand(actualCmd, JSON.stringify(args), "[]")
+          const resultJson = pruner.handleCommand(subcommand, JSON.stringify(args), "[]")
           const result = JSON.parse(resultJson)
           replyText = result.status === "ok" ? result.text : `⚠️ ${result.text}`
         }
 
-        // Send reply via client.session.prompt (reference plugin pattern).
-        // Do NOT mutate output.parts — OpenCode 1.17.x crashes on
-        // parts manipulation ("R.text.trim" TypeError).
         await sendIgnoredMessage(ctx.client, input.sessionID, replyText)
+
+        // Replace command text so the model does NOT see "/dcp" as
+        // user input.  OpenCode 1.17.x snapshots the parts array
+        // before the handler runs, so clearing the array is futile.
+        // Instead we replace every text part with an empty placeholder.
+        for (let i = 0; i < (output.parts as any).length; i++) {
+          const p = (output.parts as any)[i]
+          if (p.type === "text" && p.text && p.text.startsWith("/dcp")) {
+            p.text = ""
+          }
+        }
       } catch (err) {
         console.error("[DCP] command.execute.before error:", err)
       }

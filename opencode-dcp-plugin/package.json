@@ -1,18 +1,18 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "0.3.1",
+  "version": "0.3.7",
   "private": false,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/ts_src/index.js",
+  "types": "./dist/ts_src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/ts_src/index.d.ts",
+      "import": "./dist/ts_src/index.js"
     },
     "./tui": {
       "types": "./dist/tui.d.ts",
-      "import": "./tui.tsx"
+      "import": "./dist/tui.js"
     }
   },
   "napi": {
@@ -45,8 +45,9 @@
     "zod": "^3.25.76"
   },
   "files": [
-    "dist/",
-    "lib/",
+    "dist/ts_src/",
+    "dist/lib/",
+    "dist/tui.*",
     "tui.tsx",
     "opencode-dcp-bridge.*.node",
     "npm/",

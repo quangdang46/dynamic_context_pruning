@@ -1,73 +1,124 @@
 // @ts-nocheck
-/* ───────────────────────────────────────
+/* @jsxImportSource @opentui/solid */
+/* ───────────────────────────────────────────
  *   lib/tui/types.ts — TUI type definitions
- * ─────────────────────────────────────── */
+ *
+ *   TuiApi        — minimal OpenCode TUI API
+ *   Theme         — color palette
+ *   ThemeColor    — color getter signature
+ *   DcpCommand    — command descriptor
+ *   StatsReport   — session + all-time stats
+ *   ProgressData  — progress bar input
+ * ─────────────────────────────────────────── */
 
-/** Minimal shape of the TUI API object provided by OpenCode. */
+/** Minimal OpenCode TUI API that our dialogs rely on. */
 export interface TuiApi {
   theme?: {
-    current: Theme
+    current: Record<string, string>
   }
   ui: {
     dialog: {
-      replace(element: any): Promise<void>
+      replace(element: unknown): Promise<void>
       close(): void
+    }
+    notification?: {
+      show(message: string): void
     }
   }
   command?: {
     register(cmd: DcpCommandPaletteItem): void
+    unregister?(id: string): void
   }
   keymap?: {
     registerLayer(layer: KeymapLayer): void
+    unregisterLayer?(namespace: string): void
   }
-  [key: any]: any
+  /** Allow loose access for extra properties (e.g. "dcpConfig" on theme). */
+  [key: string]: unknown
 }
 
-/** Theme colour palette (shaped like OpenCode's default theme). */
+/** Theme colour palette, matching the shape of OpenCode's default theme. */
 export interface Theme {
-  background?: any
-  backgroundElement?: any
-  backgroundHover?: any
-  border?: any
-  primary?: any
-  primaryMuted?: any
-  text?: any
-  textMuted?: any
-  success?: any
-  warning?: any
-  error?: any
-  info?: any
-  [key: any]: any | undefined
+  primary?: string
+  primaryMuted?: string
+  text?: string
+  textMuted?: string
+  background?: string
+  backgroundElement?: string
+  backgroundHover?: string
+  border?: string
+  borderSubtle?: string
+  accent?: string
+  success?: string
+  warning?: string
+  error?: string
+  info?: string
+  [key: string]: unknown
 }
 
-/** A DCP command shown in the palette. */
+/** Colour getter — bound to a theme, returns a hex string for a key. */
+export interface ThemeColor {
+  (key: string): string
+}
+
+/** Palette command descriptor. */
 export interface DcpCommand {
-  command: any
-  description: any
+  command: string
+  description: string
+  category?: string
+  onClick?: () => void | Promise<void>
 }
 
-/** Item fed to api.command.register(). */
+/** Item fed to `api.command.register()`. */
 export interface DcpCommandPaletteItem {
-  title: any
-  value: any
-  description: any
-  category: any
-  slash?: { name: any }
+  title: string
+  value: string
+  description: string
+  category: string
+  slash?: { name: string }
   onSelect: () => Promise<void>
 }
 
-/** Keymap layer for the newer API. */
+/** Keymap layer for the newer keymap.registerLayer API. */
 export interface KeymapLayer {
-  namespace: any
+  namespace: string
   commands: KeymapCommand[]
 }
 
-/** Single keymap command. */
+/** Single keymap-registered command. */
 export interface KeymapCommand {
-  name: any
-  title: any
-  description: any
-  category: any
-  slashName: any
+  name: string
+  title: string
+  description: string
+  category: string
+  slashName: string
   run: () => Promise<void>
+}
+
+/** Session and all-time statistics report. */
+export interface StatsReport {
+  session: {
+    totalTurns: number
+    compressedBlocks: number
+    decompressedBlocks: number
+    tokensSaved: number
+    compressionRatio: number
+  }
+  allTime: {
+    totalCompressed: number
+    totalDecompressed: number
+    totalRecompressed: number
+    tokensSaved: number
+    compressionRatio: number
+    activeBlocks: number
+    pendingWork: number
+  }
+}
+
+/** Input data for a Progress bar segment. */
+export interface ProgressData {
+  label: string
+  current: number
+  max: number
+  color?: string
 }
