@@ -1,58 +1,93 @@
 // @ts-nocheck
-/* @jsxImportSource @opentui/solid */
-/* ───────────────────────────────────────────
- *   lib/tui/modals.tsx — modal open functions
- *
- *   openPanelModal     — show the main DCP overview
- *   openContextModal   — show context / token analysis
- *   openStatsModal     — show pruning statistics
- *   openCommandDialog  — show a single command overview
- * ─────────────────────────────────────────── */
+/** @jsxImportSource @opentui/solid */
 
-import { TextAttributes } from "@opentui/core"
-import type { TuiApi } from "./types.js"
-import { PanelDialog, ContextDialog, StatsDialog } from "./dialogs.jsx"
-import { DcpFrame, FooterButton } from "./ui.jsx"
+import { buildStatsReport } from "../commands/stats"
+import type { PluginConfig } from "../config"
+import { saveManualModeSetting } from "../state/persistence"
+import { loadSessionData, logger } from "./data"
+import { ContextDialog, PanelDialog, StatsDialog, StatusDialog } from "./dialogs"
+import type { TuiApi } from "./types"
 
-/* ─── Top-level dialog openers ────────────── */
-
-/** Open the main DCP panel overview. */
-export async function openPanelModal(api: TuiApi): Promise<void> {
-  await api.ui.dialog.replace(PanelDialog(api))
+export function showDialog(api: TuiApi, render: () => any) {
+    api.ui.dialog.setSize("xlarge")
+    api.ui.dialog.replace(render)
 }
 
-/** Open the context analysis panel with token breakdown. */
-export async function openContextModal(api: TuiApi): Promise<void> {
-  await api.ui.dialog.replace(ContextDialog(api))
+export function showStatusDialog(api: TuiApi, title: string, eyebrow: string, message: string) {
+    showDialog(api, () => (
+        <StatusDialog api={api} title={title} eyebrow={eyebrow} message={message} />
+    ))
 }
 
-/** Open the pruning statistics panel. */
-export async function openStatsModal(api: TuiApi): Promise<void> {
-  await api.ui.dialog.replace(StatsDialog(api))
+export function showError(api: TuiApi, title: string, error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    showStatusDialog(api, title, "DCP Error", message || "Command failed.")
 }
 
-/* ─── Single-command info dialog ──────────── */
+export function openContextModal(api: TuiApi, config: PluginConfig) {
+    runModal(api, "Context", async () => {
+        const data = await loadSessionData(api, config)
+        if (!data) {
+            showStatusDialog(api, "Context", "No session", "Open a session first.")
+            return
+        }
+        showDialog(api, () => (
+            <ContextDialog
+                api={api}
+                state={data.state}
+                messages={data.messages}
+                onBack={() => openPanelModal(api, config)}
+            />
+        ))
+    })
+}
 
-/**
- * Open a small dialog that shows a single command
- * and its description, with a "Back" button.
- */
-export async function openCommandDialog(
-  api: TuiApi,
-  command: string,
-  description: string,
-): Promise<void> {
-  const fg = (k: string): string =>
-    ((api.theme?.current ?? {}) as Record<string, string>)[k] ?? "#ffffff"
+export function openStatsModal(api: TuiApi, config: PluginConfig) {
+    runModal(api, "Stats", async () => {
+        const data = await loadSessionData(api, config)
+        if (!data) {
+            showStatusDialog(api, "Stats", "No session", "Open a session first.")
+            return
+        }
+        const report = await buildStatsReport(data.state, logger)
+        showDialog(api, () => (
+            <StatsDialog api={api} report={report} onBack={() => openPanelModal(api, config)} />
+        ))
+    })
+}
 
-  await api.ui.dialog.replace(
-    <DcpFrame api={api} title={command}>
-      <text fg={fg("textMuted")} size="small">
-        {description}
-      </text>
-      <text fg={fg("text")} size="small" attributes={TextAttributes.BOLD}>
-        Run this command in the chat: {command}
-      </text>
-    </DcpFrame>,
-  )
+export function openPanelModal(api: TuiApi, config: PluginConfig) {
+    runModal(api, "DCP", async () => {
+        const data = await loadSessionData(api, config)
+        if (!data) {
+            showStatusDialog(api, "DCP", "No session", "Open a session first.")
+            return
+        }
+        showDialog(api, () => (
+            <PanelDialog
+                api={api}
+                state={data.state}
+                config={config}
+                onContext={() => openContextModal(api, config)}
+                onStats={() => openStatsModal(api, config)}
+                onManual={(enabled) => setManualMode(api, config, data.state.sessionId, enabled)}
+            />
+        ))
+    })
+}
+
+function runModal(api: TuiApi, title: string, task: () => Promise<void>) {
+    showStatusDialog(api, title, "DCP", "Loading...")
+    void task().catch((error) => showError(api, title, error))
+}
+
+async function setManualMode(
+    api: TuiApi,
+    config: PluginConfig,
+    sessionID: string | null | undefined,
+    enabled: boolean,
+) {
+    if (!sessionID) return
+    await saveManualModeSetting(sessionID, enabled, logger)
+    openPanelModal(api, config)
 }

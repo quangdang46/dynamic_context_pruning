@@ -1,102 +1,74 @@
 // @ts-nocheck
-/* @jsxImportSource @opentui/solid */
-/* ───────────────────────────────────────────
- *   lib/tui/data.ts — DCP data helpers
- *
- *   loadConfig  — read DcpConfig from the theme slot or
- *                 parse it from a JSON string stored under
- *                 api.theme.current["dcpConfig"]
- *   useTheme    — build a colour getter bound to the API
- *   loadStats   — fetch stats from the native bridge via
- *                 a theme slot (opencode bridge integration)
- * ─────────────────────────────────────────── */
+import { getConfig, type PluginConfig } from "../config"
+import { Logger } from "../logger"
+import { filterMessages } from "../messages/shape"
+import { createSessionState, type SessionState, type WithParts } from "../state"
+import { loadSessionState } from "../state/persistence"
+import { findLastCompactionTimestamp, loadPruneMap, loadPruneMessagesState } from "../state/utils"
+import type { TuiApi } from "./types"
 
-import type { TuiApi } from "./types.js"
-import type { DcpConfig, StatsReport } from "../types.js"
+export const logger = new Logger(false)
 
-/**
- * Read the DCP configuration from the OpenCode theme slot.
- * The bridge stores the config as a JSON-in-string under the
- * key "dcpConfig" on the current theme object.
- *
- * Returns sensible defaults when the slot is unavailable or
- * the JSON cannot be parsed.
- */
-export function loadConfig(api: TuiApi): DcpConfig {
-  try {
-    const theme = (api.theme?.current ?? {}) as Record<string, unknown>
-    const raw = theme["dcpConfig"]
-
-    if (typeof raw === "string") {
-      return JSON.parse(raw) as DcpConfig
-    }
-    if (raw && typeof raw === "object") {
-      return raw as DcpConfig
-    }
-  } catch {
-    /* Fall through to defaults. */
-  }
-
-  return {
-    enabled: true,
-    max_turns: 50,
-    max_tokens: 4096,
-    strategy: "balanced",
-    compress: { permission: "allow", auto_compress: true },
-    prune: { permission: "allow", auto_prune: true },
-  }
+export function loadConfig(api: TuiApi): PluginConfig {
+    return getConfig({
+        client: api.client,
+        directory: api.state.path.directory,
+        worktree: api.state.path.worktree,
+    } as any)
 }
 
-/**
- * Build a colour-getter function bound to the current theme.
- *
- * Usage:
- *   const fg = useTheme(api)
- *   <text fg={fg("primary")}>Hello</text>
- */
-export function useTheme(api: TuiApi): (key: string) => string {
-  const theme = (api.theme?.current ?? {}) as Record<string, string>
-  return (key: string): string => theme[key] ?? "#ffffff"
+export function activeSessionID(api: TuiApi): string | undefined {
+    const current = api.route.current
+    if (current.name !== "session") return undefined
+    const sessionID = current.params?.sessionID
+    return typeof sessionID === "string" ? sessionID : undefined
 }
 
-/**
- * Load a stats report from a theme slot.
- *
- * The bridge can push a serialised StatsReport under
- * "dcpStats" on the current theme.  When none is available
- * we return placeholder dashes.
- */
-export function loadStats(api: TuiApi): StatsReport {
-  try {
-    const theme = (api.theme?.current ?? {}) as Record<string, unknown>
-    const raw = theme["dcpStats"]
+export function sessionMessages(api: TuiApi, sessionID: string): WithParts[] {
+    const messages = api.state.session.messages(sessionID)
+    return filterMessages(
+        messages.map((info) => ({
+            info,
+            parts: api.state.part(info.id),
+        })) as unknown as WithParts[],
+    )
+}
 
-    if (typeof raw === "string") {
-      return JSON.parse(raw) as StatsReport
-    }
-    if (raw && typeof raw === "object") {
-      return raw as StatsReport
-    }
-  } catch {
-    /* Fall through to defaults. */
-  }
+export async function buildSessionState(
+    sessionID: string,
+    messages: WithParts[],
+    config: PluginConfig,
+): Promise<SessionState> {
+    const state = createSessionState()
+    state.sessionId = sessionID
+    state.manualMode = config.manualMode.enabled ? "active" : false
+    state.lastCompaction = findLastCompactionTimestamp(messages)
 
-  return {
-    session: {
-      totalTurns: 0,
-      compressedBlocks: 0,
-      decompressedBlocks: 0,
-      tokensSaved: 0,
-      compressionRatio: 0,
-    },
-    allTime: {
-      totalCompressed: 0,
-      totalDecompressed: 0,
-      totalRecompressed: 0,
-      tokensSaved: 0,
-      compressionRatio: 0,
-      activeBlocks: 0,
-      pendingWork: 0,
-    },
-  }
+    const persisted = await loadSessionState(sessionID, logger)
+    if (persisted) {
+        if (typeof persisted.manualMode === "boolean") {
+            state.manualMode = persisted.manualMode ? "active" : false
+        }
+
+        state.prune.tools = loadPruneMap(persisted.prune.tools)
+        state.prune.messages = loadPruneMessagesState(persisted.prune.messages)
+        state.nudges.contextLimitAnchors = new Set(persisted.nudges.contextLimitAnchors || [])
+        state.nudges.turnNudgeAnchors = new Set(persisted.nudges.turnNudgeAnchors || [])
+        state.nudges.iterationNudgeAnchors = new Set(persisted.nudges.iterationNudgeAnchors || [])
+        state.stats = {
+            pruneTokenCounter: persisted.stats?.pruneTokenCounter || 0,
+            totalPruneTokens: persisted.stats?.totalPruneTokens || 0,
+        }
+    }
+
+    return state
+}
+
+export async function loadSessionData(api: TuiApi, config: PluginConfig) {
+    const sessionID = activeSessionID(api)
+    if (!sessionID) return undefined
+
+    const messages = sessionMessages(api, sessionID)
+    const state = await buildSessionState(sessionID, messages, config)
+    return { state, messages }
 }

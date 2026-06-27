@@ -1,27 +1,76 @@
-// @ts-nocheck
-/* ───────────────────────────────────────
- *   lib/commands/help.ts — DCP help message
- * ─────────────────────────────────────── */
+/**
+ * DCP Help command handler.
+ * Shows available DCP commands and their descriptions.
+ */
 
-export function formatHelpMessage(): any {
-  return [
-    "╭──────────────────────────────────────────────────────────────╮",
-    "│                      DCP Commands                           │",
-    "╰──────────────────────────────────────────────────────────────╯",
-    "",
-    "  /dcp                    Show this help message",
-    "  /dcp context            Show context analysis (turns, blocks, tokens)",
-    "  /dcp stats              Show pruning statistics",
-    "  /dcp sweep              Flush pending prune strategies",
-    "  /dcp manual <on|off>    Toggle manual mode",
-    "  /dcp decompress <id>    Restore a compressed block",
-    "  /dcp recompress <id>    Re-activate a decompressed block",
-    "  /dcp-compress [focus]   Trigger manual compression",
-    "",
-    "  Tools (available to the LLM):",
-    "    compress    Replace stale content with summaries",
-    "    decompress  Restore compressed blocks",
-    "    recompress  Re-activate decompressed blocks",
-    "",
-  ].join("\n")
+import type { Logger } from "../logger"
+import type { PluginConfig } from "../config"
+import type { SessionState, WithParts } from "../state"
+import { compressPermission } from "../compress-permission"
+import { sendIgnoredMessage } from "../ui/notification"
+import { getCurrentParams } from "../token-utils"
+
+export interface HelpCommandContext {
+    client: any
+    state: SessionState
+    config: PluginConfig
+    logger: Logger
+    sessionId: string
+    messages: WithParts[]
+}
+
+const TUI_COMMANDS: [string, string][] = [
+    ["DCP Context", "Show token usage breakdown for current session"],
+    ["DCP Stats", "Show DCP pruning statistics"],
+    ["DCP Help", "Show this help in a modal"],
+]
+
+const TOOL_COMMANDS: Record<string, [string, string]> = {
+    compress: ["/dcp-compress [focus]", "Trigger manual compress tool execution"],
+    decompress: ["/dcp decompress <n>", "Restore selected compression"],
+    recompress: ["/dcp recompress <n>", "Re-apply a user-decompressed compression"],
+}
+
+function getVisibleCommands(state: SessionState, config: PluginConfig): [string, string][] {
+    const commands = [...TUI_COMMANDS]
+
+    if (compressPermission(state, config) !== "deny") {
+        commands.push(TOOL_COMMANDS.compress)
+    }
+
+    return commands
+}
+
+export function formatHelpMessage(state: SessionState, config: PluginConfig): string {
+    const commands = getVisibleCommands(state, config)
+    const colWidth = Math.max(...commands.map(([cmd]) => cmd.length)) + 4
+    const lines: string[] = []
+
+    lines.push("╭─────────────────────────────────────────────────────────────────────────╮")
+    lines.push("│                              DCP Commands                               │")
+    lines.push("╰─────────────────────────────────────────────────────────────────────────╯")
+    lines.push("")
+    lines.push(`  ${"Manual mode:".padEnd(colWidth)}${state.manualMode ? "ON" : "OFF"}`)
+    lines.push("")
+    lines.push("  Open the command palette for DCP modal commands.")
+    lines.push("  Use /dcp-compress [focus] when you want DCP to ask the model to run compression.")
+    lines.push("")
+    for (const [cmd, desc] of commands) {
+        lines.push(`  ${cmd.padEnd(colWidth)}${desc}`)
+    }
+    lines.push("")
+
+    return lines.join("\n")
+}
+
+export async function handleHelpCommand(ctx: HelpCommandContext): Promise<void> {
+    const { client, state, logger, sessionId, messages } = ctx
+
+    const { config } = ctx
+    const message = formatHelpMessage(state, config)
+
+    const params = getCurrentParams(state, messages, logger)
+    await sendIgnoredMessage(client, sessionId, message, params, logger)
+
+    logger.info("Help command executed")
 }

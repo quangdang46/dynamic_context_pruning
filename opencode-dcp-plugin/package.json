@@ -1,6 +1,6 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "private": false,
   "type": "module",
   "main": "./dist/ts_src/index.js",
