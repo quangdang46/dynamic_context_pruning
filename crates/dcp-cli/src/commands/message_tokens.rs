@@ -202,8 +202,9 @@ fn extract_preview(parts: &[crate::commands::db::PartData]) -> String {
         if part.part_type == "text" {
             if let Some(ref text) = part.text {
                 let trimmed = text.trim();
-                if trimmed.len() > 40 {
-                    return format!("{}...", &trimmed[..37]);
+                if trimmed.chars().count() > 40 {
+                    let preview: String = trimmed.chars().take(37).collect();
+                    return format!("{}...", preview);
                 }
                 return trimmed.to_string();
             }

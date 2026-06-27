@@ -136,7 +136,19 @@ pub fn resolve_range(
     })
 }
 
+/// Resolve a reference string ("m####", "b<N>", or raw message id) into the
+/// raw message id it points to.
+///
+/// Errors if the format is invalid, points to a non-existent reference, or if a
+/// reference references something else (e.g. a block when looking for a message).
 fn resolve_ref_to_raw(reference: &str, state: &SessionState) -> Result<String, CompressError> {
+    // First, check if reference is already a raw message ID (e.g., "msg1", "u1", etc.)
+    // by_raw_id maps raw_id -> ref_string, so check if reference is a known raw ID
+    if state.message_ids.by_raw_id.contains_key(reference) {
+        return Ok(reference.to_string());
+    }
+
+    // Next, check for m#### style references
     if let Some(stripped) = reference.strip_prefix('m') {
         // m####
         if !stripped.bytes().all(|b| b.is_ascii_digit()) || stripped.len() != 4 {
@@ -151,6 +163,8 @@ fn resolve_ref_to_raw(reference: &str, state: &SessionState) -> Result<String, C
             .cloned()
             .ok_or_else(|| CompressError::UnknownRef(reference.into()));
     }
+
+    // Finally, check for b<N> block references
     if let Some(stripped) = reference.strip_prefix('b') {
         let n: u32 = stripped.parse().map_err(|_| {
             CompressError::InvalidCompressArgs(format!("malformed reference {reference}"))
@@ -169,6 +183,8 @@ fn resolve_ref_to_raw(reference: &str, state: &SessionState) -> Result<String, C
         }
         return Ok(block.anchor_message_id.clone());
     }
+
+    // Not a raw ID, m-reference, or b-reference
     Err(CompressError::InvalidCompressArgs(format!(
         "reference must start with m or b: {reference}"
     )))
@@ -317,5 +333,19 @@ mod tests {
         // first selected message id.
         assert_eq!(r.anchor_message_id, "u1");
         assert!(r.direct_message_ids.is_empty());
+    }
+
+    #[test]
+    fn raw_message_id_is_accepted() {
+        let messages = vec![
+            Message::user_text("u1", 0, "hi"),
+            Message::assistant_text("a1", 0, "hello"),
+            Message::user_text("u2", 0, "more"),
+        ];
+        let state = build_state(&messages);
+        let r = resolve_range("u1", "u2", &state, &messages).unwrap();
+        assert_eq!(r.start_raw, "u1");
+        assert_eq!(r.end_raw, "u2");
+        assert_eq!(r.selection_indices, vec![0, 1, 2]);
     }
 }

@@ -128,27 +128,43 @@ fn matches_glob_inner(text: &[char], ti: usize, pattern: &[char], pi: usize) -> 
 
 fn parse_date(s: &str) -> anyhow::Result<i64> {
     let parts: Vec<&str> = s.split('-').collect();
-    if parts.len() != 3
-        || parts
-            .iter()
-            .any(|p| p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit()))
+    if parts.len() != 3 {
+        anyhow::bail!("invalid date format '{}', expected YYYY-MM-DD", s);
+    }
+
+    // Each part must be non-empty ASCII digits
+    if parts[0].is_empty()
+        || !parts[0].bytes().all(|b| b.is_ascii_digit())
+        || parts[1].is_empty()
+        || !parts[1].bytes().all(|b| b.is_ascii_digit())
+        || parts[2].is_empty()
+        || !parts[2].bytes().all(|b| b.is_ascii_digit())
     {
         anyhow::bail!("invalid date format '{}', expected YYYY-MM-DD", s);
     }
 
-    let year: i64 = parts[0]
+    let year: i32 = parts[0]
         .parse()
         .map_err(|_| anyhow::anyhow!("invalid year in '{}'", s))?;
-    let month: u8 = parts[1]
+    let month: u32 = parts[1]
         .parse()
         .map_err(|_| anyhow::anyhow!("invalid month in '{}'", s))?;
-    let day: u8 = parts[2]
+    let day: u32 = parts[2]
         .parse()
         .map_err(|_| anyhow::anyhow!("invalid day in '{}'", s))?;
 
-    // Validate using chrono::NaiveDate to reject invalid
-    // calendar dates (Feb 30, Apr 31, Feb 29 non-leap, etc.)
-    NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32).ok_or_else(|| {
+    // Validate month range
+    if month < 1 || month > 12 {
+        anyhow::bail!("invalid month: {}, must be 1-12", month);
+    }
+    // Validate day range
+    if day < 1 {
+        anyhow::bail!("invalid day: {}, must be >= 1", day);
+    }
+
+    // Validate using chrono::NaiveDate to reject impossible calendar dates
+    // (Feb 30, Apr 31, Feb 29 non-leap, etc.)
+    NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
         anyhow::anyhow!(
             "invalid date: year={} month={} day={} ({}-{:02}-{:02} is not a valid calendar date)",
             year,
@@ -160,7 +176,7 @@ fn parse_date(s: &str) -> anyhow::Result<i64> {
         )
     })?;
 
-    let days = days_from_epoch(year, month, day);
+    let days = days_from_epoch(year as i64, month as u8, day as u8);
     Ok(days * 86400)
 }
 
@@ -262,5 +278,96 @@ mod tests {
         assert!(matches_glob("test-1", "test-?"));
         assert!(matches_glob("test-a", "test-?"));
         assert!(!matches_glob("test-12", "test-?"));
+    }
+
+    // --- parse_date tests ---
+
+    #[test]
+    fn parse_date_valid() {
+        assert!(parse_date("2024-01-15").is_ok());
+        assert!(parse_date("2024-12-31").is_ok());
+        assert!(parse_date("2024-02-29").is_ok()); // leap year
+        assert!(parse_date("2023-02-28").is_ok()); // non-leap, Feb 28 OK
+    }
+
+    #[test]
+    fn parse_date_invalid_feb_30() {
+        let r = parse_date("2024-02-30");
+        assert!(r.is_err());
+        assert!(
+            r.unwrap_err()
+                .to_string()
+                .contains("not a valid calendar date")
+        );
+    }
+
+    #[test]
+    fn parse_date_invalid_apr_31() {
+        let r = parse_date("2024-04-31");
+        assert!(r.is_err());
+        assert!(
+            r.unwrap_err()
+                .to_string()
+                .contains("not a valid calendar date")
+        );
+    }
+
+    #[test]
+    fn parse_date_invalid_feb_29_non_leap() {
+        let r = parse_date("2023-02-29");
+        assert!(r.is_err());
+        assert!(
+            r.unwrap_err()
+                .to_string()
+                .contains("not a valid calendar date")
+        );
+    }
+
+    #[test]
+    fn parse_date_invalid_month_13() {
+        let r = parse_date("2024-13-01");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().to_string().contains("month"));
+    }
+
+    #[test]
+    fn parse_date_invalid_month_0() {
+        let r = parse_date("2024-00-01");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().to_string().contains("month"));
+    }
+
+    #[test]
+    fn parse_date_invalid_day_0() {
+        let r = parse_date("2024-01-00");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().to_string().contains("day"));
+    }
+
+    #[test]
+    fn parse_date_invalid_format_wrong_separator() {
+        let r = parse_date("2024/01/01");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().to_string().contains("expected YYYY-MM-DD"));
+    }
+
+    #[test]
+    fn parse_date_invalid_format_empty() {
+        let r = parse_date("");
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn parse_date_invalid_format_alpha_month() {
+        let r = parse_date("2024-abc-01");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().to_string().contains("expected YYYY-MM-DD"));
+    }
+
+    #[test]
+    fn parse_date_invalid_format_partial() {
+        let r = parse_date("2024-01");
+        assert!(r.is_err());
+        assert!(r.unwrap_err().to_string().contains("expected YYYY-MM-DD"));
     }
 }

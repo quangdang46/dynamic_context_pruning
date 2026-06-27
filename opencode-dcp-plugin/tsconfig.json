@@ -1,13 +1,20 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
+    "lib": ["ES2023"],
     "moduleResolution": "bundler",
-    "strict": true,
+    "strict": false,
     "outDir": "dist",
-    "rootDir": "ts_src",
     "declaration": true,
-    "skipLibCheck": true
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/solid",
+    "types": ["node"]
   },
-  "include": ["ts_src/**/*.ts"]
+  "include": ["ts_src/**/*.ts", "lib/**/*.ts", "lib/**/*.tsx", "tui.tsx"],
+  "exclude": ["node_modules", "dist"]
 }

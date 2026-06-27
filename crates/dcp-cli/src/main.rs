@@ -106,8 +106,11 @@ enum Commands {
         /// Block ID to recompress (e.g., b1, 1)
         block_id: String,
     },
-    /// Toggle manual mode
-    Manual { enabled: String },
+    /// Toggle manual mode (omit to show current status)
+    Manual {
+        /// on/off (omit to show current status)
+        enabled: Option<String>,
+    },
 }
 
 /// Build a ContextPruner instance with default config.
@@ -429,20 +432,32 @@ fn handle_recompress(pruner: &mut ContextPruner, block_id: &str) -> anyhow::Resu
     }
 }
 
-fn handle_manual(pruner: &mut ContextPruner, enabled: &str) -> anyhow::Result<()> {
-    let enable = match enabled {
-        "on" | "true" | "1" => true,
-        "off" | "false" | "0" => false,
-        other => {
-            eprintln!("invalid value: {other}, expected on/off");
-            anyhow::bail!("invalid manual mode value");
+fn handle_manual(pruner: &mut ContextPruner, enabled: &Option<String>) -> anyhow::Result<()> {
+    match enabled {
+        Some(val) => {
+            let enable = match val.as_str() {
+                "on" | "true" | "1" => true,
+                "off" | "false" | "0" => false,
+                other => {
+                    eprintln!("invalid value: {other}, expected on/off");
+                    anyhow::bail!("invalid manual mode value");
+                }
+            };
+            pruner.set_manual_mode(enable);
+            if enable {
+                println!("Manual mode enabled");
+            } else {
+                println!("Manual mode disabled");
+            }
         }
-    };
-    pruner.set_manual_mode(enable);
-    if enable {
-        println!("Manual mode enabled");
-    } else {
-        println!("Manual mode disabled");
+        None => {
+            let status = if pruner.state().manual_mode.enabled {
+                "on"
+            } else {
+                "off"
+            };
+            println!("Manual mode is currently {status}");
+        }
     }
     Ok(())
 }
@@ -554,9 +569,9 @@ fn main() -> anyhow::Result<()> {
             let mut pruner = build_pruner()?;
             handle_recompress(&mut pruner, &block_id)?;
         }
-        Commands::Manual { enabled } => {
+        Commands::Manual { ref enabled } => {
             let mut pruner = build_pruner()?;
-            handle_manual(&mut pruner, &enabled)?;
+            handle_manual(&mut pruner, enabled)?;
         }
     }
     Ok(())

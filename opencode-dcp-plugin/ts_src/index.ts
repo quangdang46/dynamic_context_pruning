@@ -1,4 +1,4 @@
-import type { Plugin, PluginModule, PluginInput } from "@opencode-ai/plugin"
+import type { Plugin, PluginInput } from "@opencode-ai/plugin"
 import { createTools } from "./tools.js"
 import { createRequire } from "module"
 import { fileURLToPath } from "url"
@@ -28,25 +28,19 @@ interface BridgeExports {
 
 function loadBridge(): BridgeExports {
   const root = resolve(__dirname, "..")
-
-  // Try platform-specific npm packages first (for proper NAPI-RS distribution)
   const platformCandidates = [
     join(root, "npm", "darwin-arm64", "opencode-dcp-bridge.darwin-arm64.node"),
     join(root, "npm", "darwin-x64", "opencode-dcp-bridge.darwin-x64.node"),
     join(root, "npm", "linux-x64-gnu", "opencode-dcp-bridge.linux-x64-gnu.node"),
     join(root, "npm", "win32-x64-msvc", "opencode-dcp-bridge.win32-x64-msvc.node"),
   ]
-
-  // Also try root-level .node files (for development / single-platform builds)
   const rootCandidates = [
     join(root, "opencode-dcp-bridge.darwin-arm64.node"),
     join(root, "opencode-dcp-bridge.darwin-x64.node"),
     join(root, "opencode-dcp-bridge.linux-x64-gnu.node"),
     join(root, "opencode-dcp-bridge.win32-x64-msvc.node"),
   ]
-
   const candidates = [...platformCandidates, ...rootCandidates]
-
   for (const name of candidates) {
     try {
       return _require(name) as BridgeExports
@@ -83,7 +77,22 @@ function formatHelpText(): string {
   ].join("\n")
 }
 
-const createPlugin: Plugin = async (_ctx: PluginInput) => {
+/** Send an ignored message via the OpenCode SDK session API. */
+async function sendIgnoredMessage(client: any, sessionID: string, text: string): Promise<void> {
+  try {
+    await client.session.prompt({
+      path: { id: sessionID },
+      body: {
+        noReply: true,
+        parts: [{ type: "text", text, ignored: true }],
+      },
+    })
+  } catch {
+    // session.prompt may not be available; swallow.
+  }
+}
+
+const createPlugin: Plugin = async (ctx: PluginInput) => {
   const nativeBridge = loadBridge()
   const configJson = nativeBridge.loadDcpConfig()
   const config = JSON.parse(configJson)
@@ -120,48 +129,27 @@ const createPlugin: Plugin = async (_ctx: PluginInput) => {
     // ─── Slash commands ──────────────────────────────────────────
     "command.execute.before": async (input, output) => {
       try {
+        const cmd = input.command.replace(/^\//, "").split(/\s+/)[0]
+        if (cmd !== "dcp" && cmd !== "dcp-compress") return
+
         const parts = input.command.split(/\s+/)
-        let cmd = parts[0]
+        const subcommand = parts.length > 1 ? parts[1] : "help"
+        const args = parts.slice(2)
 
-        // Strip leading slash if present (OpenCode passes "/dcp")
-        if (cmd.startsWith("/")) {
-          cmd = cmd.slice(1)
-        }
-
-        if (cmd === "dcp" || cmd === "dcp-compress") {
-          const subcommand = parts.length > 1 ? parts[1] : "help"
-          const args = parts.slice(2)
-
-          // Handle help in TypeScript (purely presentational)
-          if (subcommand === "help") {
-            output.parts.length = 0
-            output.parts.push({
-              type: "text",
-              text: formatHelpText(),
-              id: `prt-${Date.now()}`,
-              sessionID: input.sessionID,
-              messageID: `cmd-${Date.now()}`,
-              synthetic: true,
-            } as any)
-            return
-          }
-
+        let replyText: string
+        if (subcommand === "help") {
+          replyText = formatHelpText()
+        } else {
           const actualCmd = cmd === "dcp-compress" ? "compress" : subcommand
           const resultJson = pruner.handleCommand(actualCmd, JSON.stringify(args), "[]")
           const result = JSON.parse(resultJson)
-
-          output.parts.length = 0
-          output.parts.push({
-            type: "text",
-            text: result.status === "ok"
-              ? result.text
-              : `⚠️ ${result.text}`,
-            id: `prt-${Date.now()}`,
-            sessionID: input.sessionID,
-            messageID: `cmd-${Date.now()}`,
-            synthetic: true,
-          } as any)
+          replyText = result.status === "ok" ? result.text : `⚠️ ${result.text}`
         }
+
+        // Send reply via client.session.prompt (reference plugin pattern).
+        // Do NOT mutate output.parts — OpenCode 1.17.x crashes on
+        // parts manipulation ("R.text.trim" TypeError).
+        await sendIgnoredMessage(ctx.client, input.sessionID, replyText)
       } catch (err) {
         console.error("[DCP] command.execute.before error:", err)
       }
@@ -183,27 +171,19 @@ const createPlugin: Plugin = async (_ctx: PluginInput) => {
       try {
         if (config.compress?.permission !== "deny") {
           opencodeConfig.command ??= {}
-
-          // Register /dcp as a slash command (shows in palette)
           opencodeConfig.command["dcp"] = {
             template: "",
             description: "DCP: context, stats, sweep, manual, decompress, recompress",
           }
-
-          // Register /dcp-compress as a slash command
           opencodeConfig.command["dcp-compress"] = {
             template: "",
             description: "Trigger DCP manual compression with: /dcp-compress [focus]",
           }
-
-          // Add compress as a primary tool so it's always available
           const existingPrimaryTools = opencodeConfig.experimental?.primary_tools ?? []
           opencodeConfig.experimental = {
             ...opencodeConfig.experimental,
             primary_tools: [...existingPrimaryTools, "compress"],
           }
-
-          // Set compress tool permission to match config
           const permission = opencodeConfig.permission ?? {}
           opencodeConfig.permission = {
             ...permission,
@@ -230,4 +210,4 @@ const createPlugin: Plugin = async (_ctx: PluginInput) => {
   }
 }
 
-export default { server: createPlugin } satisfies PluginModule
+export default createPlugin satisfies Plugin

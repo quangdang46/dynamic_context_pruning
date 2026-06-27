@@ -252,8 +252,9 @@ pub fn extract_parameter_key(tool: &str, parameters: &serde_json::Value) -> Stri
             return desc.to_string();
         }
         if let Some(cmd) = parameters.get("command").and_then(|v| v.as_str()) {
-            return if cmd.len() > 50 {
-                format!("{}...", &cmd[..50])
+            return if cmd.chars().count() > 50 {
+                let cmd_preview: String = cmd.chars().take(47).collect();
+                format!("{}...", cmd_preview)
             } else {
                 cmd.to_string()
             };
