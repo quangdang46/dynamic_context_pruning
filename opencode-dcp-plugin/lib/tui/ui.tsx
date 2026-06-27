@@ -180,7 +180,7 @@ interface ProgressProps {
 export function Progress(props: ProgressProps) {
   const fg = useTheme(props.api)
   const pctValue = props.max > 0 ? Math.min(props.current / props.max, 1) : 0
-  const barW = props.width ?? 20
+  const barW = props.width ?? 32
   const filled = Math.round(pctValue * barW)
   const empty = barW - filled
   const barColor = props.color ?? fg("primary")

@@ -16,6 +16,7 @@
  * ─────────────────────────────────────────── */
 
 import { registerCommands } from "./lib/tui/commands.js"
+import { loadConfig } from "./lib/tui/data.js"
 import type { TuiApi } from "./lib/tui/types.js"
 
 /**

@@ -126,6 +126,18 @@ const createPlugin: Plugin = async (ctx: PluginInput) => {
       }
     },
 
+    // ─── Text completion (hallucination stripping) ────────────────
+    "experimental.text.complete": async (_input, output) => {
+      // Strip DCP XML markers from standalone text completions
+      // that skip the chat message transform pipeline.
+      if (output.text) {
+        output.text = output.text
+          .replace(/<dcp-message-id>.*?<\/dcp-message-id>/g, "")
+          .replace(/<dcp-system-reminder>.*?<\/dcp-system-reminder>/g, "")
+          .replace(/<dcp-manual-compress>.*?<\/dcp-manual-compress>/g, "")
+      }
+    },
+
     // ─── Slash commands ──────────────────────────────────────────
     "command.execute.before": async (input, output) => {
       try {
@@ -146,8 +158,6 @@ const createPlugin: Plugin = async (ctx: PluginInput) => {
             (focus ? " (focus: " + focus + ")" : "") +
             ".\nPlease use the compress tool to compress stale conversation content.\n</dcp-manual-compress>"
 
-          // Replace the first text part with the prompt so the model
-          // sees it as a user message.
           const textIdx = (output.parts as any).findIndex((p: any) => p.type === "text")
           if (textIdx >= 0) {
             ;(output.parts as any)[textIdx].text = prompt
@@ -157,12 +167,25 @@ const createPlugin: Plugin = async (ctx: PluginInput) => {
           return
         }
 
-        // All other subcommands — reply via session.prompt.
+        // Build reply for all other subcommands.
         let replyText: string
         if (subcommand === "help") {
           replyText = formatHelpText()
         } else {
-          const resultJson = pruner.handleCommand(subcommand, JSON.stringify(args), "[]")
+          // Fetch session messages for accurate context/stats.
+          let messagesJson = "[]"
+          try {
+            const c = ctx.client as any
+            if (typeof c?.session?.messages === "function") {
+              const resp = await c.session.messages({ path: { id: input.sessionID } })
+              const msgData = resp?.data ?? resp ?? []
+              messagesJson = JSON.stringify(Array.isArray(msgData) ? msgData : [])
+            }
+          } catch {
+            // messages() may not be available; fall back to "[]".
+          }
+
+          const resultJson = pruner.handleCommand(subcommand, JSON.stringify(args), messagesJson)
           const result = JSON.parse(resultJson)
           replyText = result.status === "ok" ? result.text : `⚠️ ${result.text}`
         }
