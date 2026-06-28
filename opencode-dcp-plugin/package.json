@@ -1,6 +1,6 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": false,
   "type": "module",
   "main": "./dist/ts_src/index.js",
@@ -26,7 +26,7 @@
     "build:release": "cd .. && cargo build --release -p opencode-dcp-bridge && cp target/release/libopencode_dcp_bridge.dylib opencode-dcp-plugin/opencode-dcp-bridge.darwin-arm64.node",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist && rm -f *.node",
-    "prepublishOnly": "npm run build:release && npx tsc",
+    "prepublishOnly": "npm run build:release && cd .. && cargo build -p opencode-dcp-bridge && cp target/release/libopencode_dcp_bridge.dylib opencode-dcp-plugin/opencode-dcp-bridge.darwin-arm64.node",
     "postpublish": "echo \"Published! Install with: opencode plugin add @qdang46/opencode-dcp-plugin\""
   },
   "peerDependencies": {

@@ -144,63 +144,22 @@ const createPlugin: Plugin = async (ctx: PluginInput) => {
         const full = input.command.replace(/^\//, "")
         const parts = full.split(/\s+/)
         const cmd = parts[0]
-        if (cmd !== "dcp" && cmd !== "dcp-compress") return
 
-        const subcommand = parts.length > 1 ? parts[1] : "help"
-        const args = parts.slice(2)
+        // Only /dcp-compress is a registered slash command.
+        // All other dcp subcommands are only accessible via TUI.
+        if (cmd !== "dcp-compress") return
 
-        // /dcp-compress [focus] — inject a manual-compress prompt into
-        // output.parts so the model sees it and runs the compress tool.
-        if (cmd === "dcp-compress" || subcommand === "compress") {
-          const focus = args.join(" ") || ""
-          const prompt =
-            "<dcp-manual-compress>\nManual compression triggered" +
-            (focus ? " (focus: " + focus + ")" : "") +
-            ".\nPlease use the compress tool to compress stale conversation content.\n</dcp-manual-compress>"
+        const focus = parts.slice(1).join(" ") || ""
+        const prompt =
+          "<dcp-manual-compress>\nManual compression triggered" +
+          (focus ? " (focus: " + focus + ")" : "") +
+          ".\nPlease use the compress tool to compress stale conversation content.\n</dcp-manual-compress>"
 
-          const textIdx = (output.parts as any).findIndex((p: any) => p.type === "text")
-          if (textIdx >= 0) {
-            ;(output.parts as any)[textIdx].text = prompt
-          } else {
-            ;(output.parts as any).unshift({ type: "text", text: prompt })
-          }
-          return
-        }
-
-        // Build reply for all other subcommands.
-        let replyText: string
-        if (subcommand === "help") {
-          replyText = formatHelpText()
+        const textIdx = (output.parts as any).findIndex((p: any) => p.type === "text")
+        if (textIdx >= 0) {
+          ;(output.parts as any)[textIdx].text = prompt
         } else {
-          // Fetch session messages for accurate context/stats.
-          let messagesJson = "[]"
-          try {
-            const c = ctx.client as any
-            if (typeof c?.session?.messages === "function") {
-              const resp = await c.session.messages({ path: { id: input.sessionID } })
-              const msgData = resp?.data ?? resp ?? []
-              messagesJson = JSON.stringify(Array.isArray(msgData) ? msgData : [])
-            }
-          } catch {
-            // messages() may not be available; fall back to "[]".
-          }
-
-          const resultJson = pruner.handleCommand(subcommand, JSON.stringify(args), messagesJson)
-          const result = JSON.parse(resultJson)
-          replyText = result.status === "ok" ? result.text : `⚠️ ${result.text}`
-        }
-
-        await sendIgnoredMessage(ctx.client, input.sessionID, replyText)
-
-        // Replace command text so the model does NOT see "/dcp" as
-        // user input.  OpenCode 1.17.x snapshots the parts array
-        // before the handler runs, so clearing the array is futile.
-        // Instead we replace every text part with an empty placeholder.
-        for (let i = 0; i < (output.parts as any).length; i++) {
-          const p = (output.parts as any)[i]
-          if (p.type === "text" && p.text && p.text.startsWith("/dcp")) {
-            p.text = ""
-          }
+          ;(output.parts as any).unshift({ type: "text", text: prompt })
         }
       } catch (err) {
         console.error("[DCP] command.execute.before error:", err)
@@ -223,10 +182,8 @@ const createPlugin: Plugin = async (ctx: PluginInput) => {
       try {
         if (config.compress?.permission !== "deny") {
           opencodeConfig.command ??= {}
-          opencodeConfig.command["dcp"] = {
-            template: "",
-            description: "DCP: context, stats, sweep, manual, decompress, recompress",
-          }
+          // Only register /dcp-compress as a chat slash command.
+          // All other DCP commands are accessed via the TUI panel.
           opencodeConfig.command["dcp-compress"] = {
             template: "",
             description: "Trigger DCP manual compression with: /dcp-compress [focus]",
