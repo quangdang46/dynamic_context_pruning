@@ -38,7 +38,7 @@
     "dcp",
     "tokens"
   ],
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "homepage": "https://github.com/quangdang46/dynamic_context_pruning",
   "bugs": {
     "url": "https://github.com/quangdang46/dynamic_context_pruning/issues"
@@ -73,7 +73,8 @@
     "lib/",
     "tui.tsx",
     "dcp.schema.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=18"

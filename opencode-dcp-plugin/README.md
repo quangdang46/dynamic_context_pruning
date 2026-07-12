@@ -1,7 +1,7 @@
 # @qdang46/opencode-dcp-plugin
 
 [![npm version](https://img.shields.io/npm/v/@qdang46/opencode-dcp-plugin?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/@qdang46/opencode-dcp-plugin)
-[![License: MIT](https://img.shields.io/github/license/quangdang46/dynamic_context_pruning?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/blob/main/LICENSE)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/blob/main/LICENSE)
 
 **Dynamic Context Pruning plugin for [OpenCode](https://github.com/anomalyco/opencode)**
 
@@ -109,4 +109,4 @@ Based on [@tarquinen/opencode-dcp](https://github.com/Opencode-DCP/opencode-dyna
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+AGPL-3.0-or-later — see [LICENSE](./LICENSE).

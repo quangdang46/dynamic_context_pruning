@@ -8,7 +8,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![License](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)
 ![Release](https://img.shields.io/github/v/release/quangdang46/dynamic_context_pruning?include_prereleases)
 
 </div>
@@ -447,7 +447,7 @@ Please don't take this the wrong way, but I do not accept outside contributions 
 
 ## License
 
-[MIT](LICENSE)
+[AGPL-3.0-or-later](LICENSE)
 
 ---
 

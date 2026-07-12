@@ -30,7 +30,7 @@ edition = "2024"
 # Edition 2024 requires Rust 1.85.0 or newer. PLAN.md §15 Q3 had 1.75 as a
 # proposed MSRV; bumped here to the minimum compatible with edition 2024.
 rust-version = "1.85"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/quangdang46/dynamic_context_pruning"
 keywords = ["llm", "agent", "context", "pruning", "tokens"]
 categories = ["development-tools"]
