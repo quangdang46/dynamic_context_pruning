@@ -2,55 +2,110 @@
 
 [![npm version](https://img.shields.io/npm/v/@qdang46/opencode-dcp-plugin?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/@qdang46/opencode-dcp-plugin)
 [![License: MIT](https://img.shields.io/github/license/quangdang46/dynamic_context_pruning?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/blob/main/LICENSE)
-[![npm downloads](https://img.shields.io/npm/dm/@qdang46/opencode-dcp-plugin?style=for-the-badge)](https://www.npmjs.com/package/@qdang46/opencode-dcp-plugin)
 
-**NAPI-RS native Dynamic Context Pruning plugin for [OpenCode](https://github.com/anomalyco/opencode)**
+**Dynamic Context Pruning plugin for [OpenCode](https://github.com/anomalyco/opencode)**
 
-Forked from [@tarquinen/opencode-dcp](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning) (AGPL-3.0). Rewritten with a Rust native addon for the core DCP logic while keeping the TypeScript plugin architecture and TUI from the original.
+Full-parity TypeScript port of [@tarquinen/opencode-dcp](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning) (v3.1.x). Same hooks, TUI panel, compress tools, notifications, persistence, and config as upstream.
 
 ## Installation
+
+### Local (dev / pin)
+
+In both `~/.config/opencode/opencode.jsonc` **and** `~/.config/opencode/tui.json`:
+
+```jsonc
+{
+  "plugin": [
+    "file:///Users/you/Projects/dynamic_context_pruning/opencode-dcp-plugin"
+  ]
+}
+```
+
+> OpenCode 1.17 loads TUI plugins from `tui.json` separately from server plugins in `opencode.jsonc`. Use an absolute `file://` path (outside `node_modules`) so OpenTUI JSX transforms correctly ([opencode#33884](https://github.com/anomalyco/opencode/issues/33884)).
+
+### npm
 
 ```bash
 opencode plugin @qdang46/opencode-dcp-plugin@latest --global
 ```
 
-Restart OpenCode and run `/dcp` to open the DCP panel.
+Restart OpenCode completely after install.
 
 ## Usage
 
-| Slash Command | Description |
-|---|---|
-| `/dcp` | Open the DCP panel |
-| `/dcp context` | Show token usage breakdown |
-| `/dcp stats` | Show pruning statistics |
+| Command | What happens |
+|---------|----------------|
+| `/dcp` | **TUI dialog panel** — Context / Stats / Manual mode / compress prompt hint |
+| `/dcp-compress [focus]` | Chat slash: queues a manual compress prompt; model must call `compress` |
+| `/dcp context` | Ignored chat message with token breakdown |
+| `/dcp stats` | Ignored chat message with session + all-time stats |
 | `/dcp sweep` | Flush pending prune strategies |
-| `/dcp manual <on\|off>` | Toggle manual mode |
+| `/dcp manual on\|off` | Toggle manual mode (persisted) |
 | `/dcp decompress <id>` | Restore a compressed block |
 | `/dcp recompress <id>` | Re-activate a decompressed block |
-| `/dcp-compress [focus]` | Trigger manual compression |
+
+LLM tools (when compress permission allows):
+
+- `compress` — range mode (`startId`/`endId`) or message mode (`messageId`), per config
 
 ## Configuration
 
-Config cascades through 4 tiers (later wins per key):
+`~/.config/opencode/dcp.jsonc` (or project `.opencode/dcp.jsonc`):
 
-1. Built-in defaults (compiled)
-2. Global: `~/.config/dynamic_context_pruning/config.jsonc`
-3. Custom: `$DCP_CONFIG_DIR/config.jsonc`
-4. Project: `.dynamic_context_pruning/config.jsonc`
+```jsonc
+{
+  "enabled": true,
+  "strategies": {
+    "deduplication": { "enabled": true },
+    "purgeErrors": { "enabled": true }
+  },
+  "compress": {
+    "mode": "range",           // or "message"
+    "permission": "allow",
+    "showCompression": true
+  },
+  "pruneNotification": "detailed", // off | minimal | detailed
+  "pruneNotificationType": "chat", // chat | toast
+  "manualMode": { "enabled": false },
+  "commands": { "enabled": true }
+}
+```
 
-See the [reference docs](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning) for full config schema.
+Full schema: [`dcp.schema.json`](./dcp.schema.json).
+
+## Architecture
+
+```
+OpenCode server process
+  index.ts (Plugin)
+    → hooks (messages.transform, system, commands, events)
+    → strategies (dedup, purge-errors)
+    → compress tools (range | message)
+    → state persistence (~/.local/share/opencode/storage/plugin/dcp/)
+
+OpenCode TUI process
+  tui.tsx
+    → /dcp → PanelDialog (Context / Stats / Manual)
+```
+
+Same structure as upstream `@tarquinen/opencode-dcp`. Prune mutates OpenCode tool parts in place (placeholder outputs) — no IR round-trip.
 
 ## Development
 
 ```bash
 cd opencode-dcp-plugin
-npm run build           # Build Rust native addon
-npx tsc                 # Compile TypeScript
+npm install --legacy-peer-deps
+npm run build          # tsup → dist/index.js + tsc declarations
+npm run typecheck
 ```
+
+After changing TUI sources, restart OpenCode (TUI loads `tui.tsx` live via `file://`).
+
+> Do **not** leave nested `node_modules/@opentui` or `solid-js` in the plugin package when loading via `file://` — OpenCode must use its host renderer.
 
 ## Credits
 
-Based on [@tarquinen/opencode-dcp](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning) (AGPL-3.0) by [tarquinen](https://github.com/tarquinen). The core DCP logic (pruning, compression, token counting, config cascade) is implemented as a Rust NAPI-RS native addon for maximum performance.
+Based on [@tarquinen/opencode-dcp](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning) (AGPL-3.0) by [tarquinen](https://github.com/tarquinen).
 
 ## License
 

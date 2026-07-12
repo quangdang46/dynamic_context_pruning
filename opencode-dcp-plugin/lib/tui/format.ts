@@ -1,4 +1,3 @@
-// @ts-nocheck
 export function formatDuration(ms: number): string {
     const safeMs = Math.max(0, Math.round(ms))
     if (safeMs < 1000) return `${safeMs} ms`

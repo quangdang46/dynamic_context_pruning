@@ -1,59 +1,34 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "0.3.9",
+  "version": "0.5.0",
   "private": false,
   "type": "module",
-  "main": "./dist/ts_src/index.js",
-  "types": "./dist/ts_src/index.d.ts",
+  "description": "OpenCode plugin that optimizes token usage by pruning obsolete tool outputs from conversation context (full parity port of @tarquinen/opencode-dcp)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "oc-plugin": ["server", "tui"],
   "exports": {
     ".": {
-      "types": "./dist/ts_src/index.d.ts",
-      "import": "./dist/ts_src/index.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./tui": {
       "types": "./dist/tui.d.ts",
-      "import": "./dist/tui.js"
-    }
-  },
-  "napi": {
-    "name": "opencode-dcp-bridge",
-    "triples": {
-      "defaults": true
+      "import": "./tui.tsx",
+      "default": "./tui.tsx"
     }
   },
   "scripts": {
-    "build": "cd .. && cargo build -p opencode-dcp-bridge && cp target/debug/libopencode_dcp_bridge.dylib opencode-dcp-plugin/opencode-dcp-bridge.darwin-arm64.node",
-    "build:release": "cd .. && cargo build --release -p opencode-dcp-bridge && cp target/release/libopencode_dcp_bridge.dylib opencode-dcp-plugin/opencode-dcp-bridge.darwin-arm64.node",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsup && tsc --emitDeclarationOnly",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist && rm -f *.node",
-    "prepublishOnly": "npm run build:release && cd .. && cargo build -p opencode-dcp-bridge && cp target/release/libopencode_dcp_bridge.dylib opencode-dcp-plugin/opencode-dcp-bridge.darwin-arm64.node",
-    "postpublish": "echo \"Published! Install with: opencode plugin add @qdang46/opencode-dcp-plugin\""
+    "dev": "opencode plugin dev",
+    "prepublishOnly": "npm run build"
   },
-  "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.4.3",
-    "@opentui/core": "^0.4.2",
-    "@opentui/solid": "^0.4.2",
-    "solid-js": "^1.9.12"
-  },
-  "devDependencies": {
-    "@opencode-ai/plugin": "^1.17.9",
-    "@opentui/core": "^0.4.2",
-    "@opentui/solid": "^0.4.2",
-    "@types/node": "^26.0.0",
-    "solid-js": "^1.9.12",
-    "typescript": "^5.9.3",
-    "zod": "^3.25.76"
-  },
-  "files": [
-    "dist/ts_src/",
-    "dist/lib/",
-    "dist/tui.*",
-    "tui.tsx",
-    "opencode-dcp-bridge.*.node",
-    "npm/",
-    "README.md"
-  ],
-  "description": "NAPI-RS native OpenCode plugin for Dynamic Context Pruning — intelligently manages conversation context to optimize token usage",
   "keywords": [
     "opencode",
     "opencode-plugin",
@@ -73,10 +48,34 @@
     "url": "git+https://github.com/quangdang46/dynamic_context_pruning.git",
     "directory": "opencode-dcp-plugin"
   },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.4.3",
+    "@opentui/core": "^0.4.2",
+    "@opentui/solid": "^0.4.2",
+    "solid-js": "^1.9.12"
+  },
+  "dependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4",
+    "@opencode-ai/sdk": "^1.4.3",
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.17.18",
+    "@opentui/core": "^0.4.3",
+    "@opentui/solid": "^0.4.3",
+    "@types/node": "^26.1.1",
+    "solid-js": "^1.9.14",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist/",
+    "lib/",
+    "tui.tsx",
+    "dcp.schema.json",
+    "README.md"
+  ],
   "engines": {
     "node": ">=18"
-  },
-  "optionalDependencies": {
-    "@qdang46/opencode-dcp-bridge-darwin-arm64": "0.2.2"
   }
 }

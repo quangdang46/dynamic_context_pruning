@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** @jsxImportSource @opentui/solid */
 
 import { buildStatsReport } from "../commands/stats"
@@ -21,7 +20,7 @@ export function showStatusDialog(api: TuiApi, title: string, eyebrow: string, me
 
 export function showError(api: TuiApi, title: string, error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    showStatusDialog(api, title, "DCP Error", message || "Command failed.")
+    showStatusDialog(api, title, "◆ DCP rust Error", message || "Command failed.")
 }
 
 export function openContextModal(api: TuiApi, config: PluginConfig) {
@@ -57,10 +56,10 @@ export function openStatsModal(api: TuiApi, config: PluginConfig) {
 }
 
 export function openPanelModal(api: TuiApi, config: PluginConfig) {
-    runModal(api, "DCP", async () => {
+    runModal(api, "DCP rust", async () => {
         const data = await loadSessionData(api, config)
         if (!data) {
-            showStatusDialog(api, "DCP", "No session", "Open a session first.")
+            showStatusDialog(api, "DCP rust", "No session", "Open a session first.")
             return
         }
         showDialog(api, () => (
@@ -77,7 +76,7 @@ export function openPanelModal(api: TuiApi, config: PluginConfig) {
 }
 
 function runModal(api: TuiApi, title: string, task: () => Promise<void>) {
-    showStatusDialog(api, title, "DCP", "Loading...")
+    showStatusDialog(api, title, "◆ DCP rust", "Loading...")
     void task().catch((error) => showError(api, title, error))
 }
 

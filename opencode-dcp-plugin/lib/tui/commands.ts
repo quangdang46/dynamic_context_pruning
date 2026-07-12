@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { DcpCommand, TuiApi } from "./types"
 
 export function registerCommands(api: TuiApi, commands: DcpCommand[]) {
@@ -10,7 +9,7 @@ export function registerCommands(api: TuiApi, commands: DcpCommand[]) {
                 name: command.name,
                 title: command.title,
                 desc: command.description,
-                category: "DCP",
+                category: "DCP rust",
                 slashName: command.slashName,
                 slashAliases: command.slashAliases,
                 run: command.run,
@@ -24,7 +23,7 @@ export function registerCommands(api: TuiApi, commands: DcpCommand[]) {
             title: command.title,
             value: command.name,
             description: command.description,
-            category: "DCP",
+            category: "DCP rust",
             slash: { name: command.slashName, aliases: command.slashAliases },
             onSelect: command.run,
         })),

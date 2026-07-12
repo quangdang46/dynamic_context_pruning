@@ -179,6 +179,7 @@ fn load_with_paths_explicit_layers() {
         global: Some(global),
         custom: None,
         project: Some(project),
+        overlays: vec![],
     };
     let cfg = load_with_paths(&paths).expect("load");
     assert!(cfg.debug);
@@ -211,6 +212,7 @@ fn jsonc_supports_comments_and_trailing_commas() {
         global: Some(path),
         custom: None,
         project: None,
+        overlays: vec![],
     };
     let cfg = load_with_paths(&paths).expect("jsonc parses");
     assert!(cfg.debug);
@@ -230,6 +232,7 @@ fn invalid_config_value_is_rejected_at_load() {
         global: Some(path),
         custom: None,
         project: None,
+        overlays: vec![],
     };
     let err = load_with_paths(&paths).expect_err("validation must fail");
     let msg = format!("{err}");
@@ -255,6 +258,7 @@ fn unknown_keys_are_ignored_silently() {
         global: Some(path),
         custom: None,
         project: None,
+        overlays: vec![],
     };
     let cfg = load_with_paths(&paths).expect("unknown keys must not block load");
     assert_eq!(cfg.compress.nudge_frequency, 7);

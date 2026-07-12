@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** @jsxImportSource @opentui/solid */
 
 import { compressPermission } from "../compress-permission"
@@ -38,7 +37,7 @@ export function ContextDialog(props: {
     const activePruned = breakdown.prunedToolCount + breakdown.prunedMessageCount
 
     return (
-        <DcpFrame api={props.api} title="Context" eyebrow="DCP" onBack={props.onBack}>
+        <DcpFrame api={props.api} title="Context" eyebrow="◆ DCP rust" onBack={props.onBack}>
             <Card theme={theme} title="Current">
                 <Metric
                     theme={theme}
@@ -101,7 +100,7 @@ export function StatsDialog(props: { api: TuiApi; report: StatsReport; onBack: (
     const theme = props.api.theme.current
     const ratio = formatRatio(props.report.sessionTokens, props.report.sessionSummaryTokens)
     return (
-        <DcpFrame api={props.api} title="Stats" eyebrow="DCP" onBack={props.onBack}>
+        <DcpFrame api={props.api} title="Stats" eyebrow="◆ DCP rust" onBack={props.onBack}>
             <Card theme={theme} title="Session">
                 <Metric
                     theme={theme}
@@ -147,7 +146,7 @@ export function StatsDialog(props: { api: TuiApi; report: StatsReport; onBack: (
                 />
                 <Metric
                     theme={theme}
-                    label="Sessions with DCP history"
+                    label="Sessions with DCP rust history"
                     value={`${props.report.allTime.sessionCount}`}
                 />
             </Card>
@@ -166,7 +165,7 @@ export function PanelDialog(props: {
     const theme = props.api.theme.current
     const canCompress = compressPermission(props.state, props.config) !== "deny"
     return (
-        <DcpFrame api={props.api} eyebrow="DCP">
+        <DcpFrame api={props.api} eyebrow="◆ DCP rust">
             <Card theme={theme} title="Views">
                 <box flexDirection="column" gap={1}>
                     <ActionRow

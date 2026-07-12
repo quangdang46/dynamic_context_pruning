@@ -1,4 +1,3 @@
-// @ts-nocheck
 /** @jsxImportSource @opentui/solid */
 
 import { TextAttributes } from "@opentui/core"

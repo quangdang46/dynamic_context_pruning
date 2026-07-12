@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { getConfig, type PluginConfig } from "../config"
 import { Logger } from "../logger"
 import { filterMessages } from "../messages/shape"

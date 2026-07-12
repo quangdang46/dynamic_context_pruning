@@ -1,45 +1,26 @@
-// @ts-nocheck
-/* @jsxImportSource @opentui/solid */
-/* ───────────────────────────────────────────
- *   tui.tsx — OpenCode plugin TUI entry point
- *
- *   This file is the TUI sub-entry declared in
- *   package.json under `exports["./tui"]`.
- *
- *   It registers the DCP command palette entries
- *   (panel, context, stats) and optionally loads
- *   the config from the bridge.
- *
- *   OpenCode loads this file when the session
- *   starts and calls the exported `tui` function
- *   with the TuiApi instance.
- * ─────────────────────────────────────────── */
+/** @jsxImportSource @opentui/solid */
 
-import { registerCommands } from "./lib/tui/commands.js"
-import { loadConfig } from "./lib/tui/data.js"
-import type { TuiApi } from "./lib/tui/types.js"
+import type { TuiPluginModule } from "@opencode-ai/plugin/tui"
+import { registerCommands } from "./lib/tui/commands"
+import { loadConfig } from "./lib/tui/data"
+import { openPanelModal } from "./lib/tui/modals"
 
-/**
- * Plugin TUI descriptor.
- *
- * `id` must match the `exports` key in package.json
- * so OpenCode can route the TuiApi to this handler.
- *
- * The `tui` function:
- *   1. Register DCP commands in the command palette.
- *   2. Additional initialisation can be added here.
- */
-const descriptor = {
-  id: "opencode-dcp",
-  tui: async (api: TuiApi): Promise<void> => {
-    /* ── Register palette commands ────────────── */
-    await registerCommands(api, [])
+const tui: TuiPluginModule["tui"] = async (api) => {
+    const config = loadConfig(api)
+    if (!config.enabled || !config.commands.enabled) return
 
-    /* ── Optional: attach to lifecycle events ── */
-    /* The bridge will push stats through theme
-       slots.  Polling is not needed — OpenCode
-       re-renders dialogs on each open. */
-  },
+    registerCommands(api, [
+        {
+            title: "DCP rust",
+            name: "dcp.panel",
+            description: "Open DCP rust panel",
+            slashName: "dcp",
+            run: () => openPanelModal(api, config),
+        },
+    ])
 }
 
-export default descriptor
+export default {
+    id: "dcp-rust",
+    tui,
+} satisfies TuiPluginModule
