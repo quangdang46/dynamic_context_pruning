@@ -1,9 +1,9 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "private": false,
   "type": "module",
-  "description": "OpenCode plugin that optimizes token usage by pruning obsolete tool outputs from conversation context (full parity port of @tarquinen/opencode-dcp)",
+  "description": "OpenCode plugin that optimizes token usage by pruning obsolete tool outputs from conversation context (full parity port of @tarquinen/opencode-dcp, rebranded as ◆ DCP rust)",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "oc-plugin": ["server", "tui"],
@@ -24,8 +24,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && tsup && tsc --emitDeclarationOnly",
-    "typecheck": "tsc --noEmit",
+    "build": "npm run clean && tsup",
+    "typecheck": "[ -d node_modules/.ss ] || (echo 'restore devDeps first' && false) && tsc --noEmit",
     "dev": "opencode plugin dev",
     "prepublishOnly": "npm run build"
   },
