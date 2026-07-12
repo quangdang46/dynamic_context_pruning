@@ -1,130 +1,264 @@
+# dcp — Dynamic Context Pruning
+
+<div align="center">
+  <img src="dcp_illustration.webp" alt="dcp — deterministic + LLM context pruning for coding agents" width="720">
+</div>
+
 <div align="center">
 
-# dynamic_context_pruning
-
-**Deterministic and LLM-driven context pruning for LLM coding agents.**
-
-[![License: MIT](https://img.shields.io/github/license/quangdang46/dynamic_context_pruning?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/blob/main/LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/quangdang46/dynamic_context_pruning/ci.yml?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/actions)
-[![GitHub Stars](https://img.shields.io/github/stars/quangdang46/dynamic_context_pruning?style=for-the-badge)](https://github.com/quangdang46/dynamic_context_pruning/stargazers)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)
+![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/quangdang46/dynamic_context_pruning?include_prereleases)](https://github.com/quangdang46/dynamic_context_pruning/releases)
 
 </div>
 
-## What is this?
+**Deterministic + LLM-driven context pruning for coding agents.**  
+Shrink session token load with dedup, error purge, stale-read removal, and optional LLM compression — via CLI, library embed, or OpenCode plugin.
 
-Dynamic Context Pruning (DCP) reduces token usage in LLM coding agent sessions through a combination of **deterministic strategies** (deduplication, error purging, stale file read removal) and **LLM-driven compression**. It manages session state, tracks compression blocks for cache stability, and exposes pruning capabilities via CLI, direct library embedding, and an [OpenCode](https://github.com/anomalyco/opencode) plugin.
+<div align="center">
+<h3>Quick Install</h3>
 
-Built as a modular Rust workspace with 19 crates — each responsible for a distinct capability (token counting, persistence, configuration cascading, telemetry, permissions, notifications, and more).
+```bash
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh?$(date +%s)" \
+  | bash -s -- --easy-mode --verify
+```
 
-## OpenCode Plugin
+</div>
 
-Install the DCP plugin for OpenCode in one command:
+---
+
+## TL;DR
+
+### The Problem
+
+Long agent sessions fill context with noise:
+
+| Noise | Cost |
+|-------|------|
+| Duplicate tool results | Tokens for the same file twice |
+| Stale file reads | Old snapshots after later edits |
+| Error dumps already fixed | Dead stack traces |
+| Unstructured history | Cache thrash + higher latency |
+
+### The Solution
+
+**dcp** prunes first with **deterministic strategies**, then optionally **LLM-compresses** ranges while tracking blocks for cache stability.
+
+| Surface | What you get |
+|---------|--------------|
+| `dcp` CLI | stats, timeline, sweep, compress / decompress |
+| Library (`dcp-core`) | Embed `ContextPruner` in your agent |
+| OpenCode plugin | Real-time prune panel + slash commands |
+
+### Why Use dcp?
+
+| Feature | What it does |
+|---------|--------------|
+| **Deterministic first** | Dedup, purge errors, drop stale file reads — no model required |
+| **Optional LLM compress** | Range / message modes with block bookkeeping |
+| **Cache-aware modes** | `aggressive` · `agent-message` · `manual` stability modes |
+| **Protected globs** | Never prune secrets (e.g. `**/.env`) |
+| **Agent-native surfaces** | CLI + library + OpenCode plugin |
+| **JSON robot output** | Scriptable analytics for agent loops |
+
+---
+
+### Quick Example
+
+```bash
+# Install
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh?$(date +%s)" \
+  | bash -s -- --easy-mode --verify
+
+# Inspect context + stats
+dcp context
+dcp stats --session-id "$SESSION_ID"
+dcp timeline -s "$SESSION_ID"
+
+# Flush pending deterministic prunes
+dcp sweep
+
+# Compress a message batch (stdin or file)
+dcp compress messages.json
+dcp decompress b1
+dcp recompress b1
+```
+
+---
+
+## Design Philosophy
+
+1. **Deterministic before generative.**  
+   Cheap, predictable strategies run first. LLM compression is opt-in and block-tracked.
+
+2. **Cache stability is a first-class goal.**  
+   Naive “summarize everything” thrashs provider caches. dcp tracks compressible blocks and modes.
+
+3. **Never silently destroy protected content.**  
+   Glob protection keeps secrets and critical paths out of prune paths.
+
+4. **Embeddable, not only a CLI.**  
+   `dcp-core`’s `ContextPruner` is the library facade; CLI and plugins are thin surfaces.
+
+5. **Degrade cleanly.**  
+   No LLM backend configured? Deterministic strategies still run.
+
+---
+
+## How dcp Compares
+
+| Approach | Control | Cache-aware | Agent-native | Restorable blocks |
+|----------|---------|-------------|--------------|-------------------|
+| Manual `/clear` | Coarse | No | No | No |
+| Summarize-everything | Lossy | Often breaks | Partial | Rarely |
+| Provider compact only | Opaque | Varies | Built-in only | Varies |
+| **dcp** | Strategy + blocks | Yes | CLI + plugin + lib | Yes |
+
+**When to use dcp:**
+- Long coding-agent sessions with repeated tool reads
+- Embedding pruning inside a custom agent runtime
+- OpenCode users who want a live prune panel
+
+**When dcp might not be ideal:**
+- Single-turn prompts with tiny context
+- Environments where you cannot persist block payloads for decompress
+
+---
+
+## Installation
+
+### CLI binary
+
+```bash
+# macOS / Linux
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh?$(date +%s)" \
+  | bash -s -- --easy-mode --verify
+
+# Windows PowerShell
+irm "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.ps1" | iex
+```
+
+### OpenCode plugin
 
 ```bash
 opencode plugin @qdang46/opencode-dcp-plugin@latest --global
 ```
 
-Restart OpenCode and use `/dcp` to open the DCP panel. The plugin automatically prunes, deduplicates, and compresses conversation context in real time.
+Restart OpenCode → `/dcp` opens the panel.
 
-| Slash Command | Description |
-|---|---|
-| `/dcp` | Open the DCP panel |
-| `/dcp context` | Show token usage breakdown |
-| `/dcp stats` | Show pruning statistics |
-| `/dcp sweep` | Flush pending prune strategies |
-| `/dcp decompress <id>` | Restore a compressed block |
-| `/dcp recompress <id>` | Re-activate a decompressed block |
-| `/dcp-compress [focus]` | Trigger manual compression |
+| Slash | Action |
+|-------|--------|
+| `/dcp` | Open panel |
+| `/dcp context` | Token breakdown |
+| `/dcp stats` | Prune stats |
+| `/dcp sweep` | Flush pending strategies |
+| `/dcp decompress <id>` | Restore a block |
+| `/dcp recompress <id>` | Re-activate a block |
+| `/dcp-compress [focus]` | Manual compression |
 
-Built with [@qdang46/opencode-dcp-plugin](https://www.npmjs.com/package/@qdang46/opencode-dcp-plugin) — a NAPI-RS native addon + TypeScript plugin, forked from [@tarquinen/opencode-dcp](https://github.com/Opencode-DCP/opencode-dynamic-context-pruning).
+### From source
 
-## Architecture
-
+```bash
+git clone https://github.com/quangdang46/dynamic_context_pruning.git
+cd dynamic_context_pruning
+cargo build --workspace --release
+cargo run -p dcp-cli -- --help
 ```
-dcp-types          Core types: Message, Part, Role, BlockId, SessionState, Stats
-       ↑
-dcp-traits         Pluggable traits: Tokenizer, StatePersistence, PruneStrategy, CacheAccountant
-       ↑
-       ├── dcp-tokens        Token counting (char/HuggingFace/tiktoken/Claude backends)
-       ├── dcp-protected     Glob-based tool/file path protection
-       ├── dcp-state         SessionState transitions, idempotent rebuild
-       │         ↑
-       │         ├── dcp-storage     Persistence backends (file/in-memory; optional sled/sqlite)
-       │         ├── dcp-prune      Deterministic prune strategies (dedup, purge_errors, stale_file_reads)
-       │         ├── dcp-compress   LLM-driven compression (range/message modes, block bookkeeping)
-       │         └── dcp-nudges     Context-limit/turn/iteration nudge injection
-       │
-dcp-config         Config schema, JSONC parser, cascade resolution (4-tier: builtin → global → custom → project)
-       ↑
-dcp-prompts        Default system prompts + 3-tier override cascade (extension, nudge, tool)
-       ↑
-dcp-core           ContextPruner facade + orchestration (top-level entry point)
-       ↑
-       └── dcp-cli           CLI binary: stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress
 
-dcp-permissions    Auth, host permissions, compress permission resolution
-dcp-messages       Message query, shape, sync, priority, injection, subagents, reasoning strip
-dcp-notification   User-facing notification formatting and sending
-dcp-telemetry      Telemetry, metrics, observer hooks
+Requires **Rust 1.85+** (edition 2024).
+
+### As a library
+
+```toml
+[dependencies]
+dcp-core = { git = "https://github.com/quangdang46/dynamic_context_pruning" }
+dcp-config = { git = "https://github.com/quangdang46/dynamic_context_pruning" }
 ```
+
+```rust
+use dcp_config::Config;
+use dcp_core::ContextPruner;
+
+let cfg = Config::load_default()?;
+cfg.validate()?;
+let pruner = ContextPruner::builder().config(cfg).build()?;
+```
+
+See `examples/01_minimal.rs` … `06_cache_stability.rs`.
+
+---
 
 ## Quick Start
 
 ```bash
-# Build all crates
-cargo build --workspace
-
-# Run tests
-cargo test --workspace
-
-# Run the CLI
-cargo run -p dcp-cli -- --help
-
+dcp context
+dcp stats --session-id <SESSION_ID>
+dcp timeline -s <SESSION_ID>
+dcp sweep
+dcp compress messages.json
+dcp decompress b1
+dcp recompress b1
+dcp manual on
+dcp manual off
 ```
 
-## Crate Guide
+### Robot / script surface
 
-| Crate | Path | Purpose |
-|---|---|---|
-| `dcp-types` | `crates/dcp-types` | Canonical types: `Message`, `Part`, `Role`, `BlockId`, `SessionState`, `Stats` |
-| `dcp-traits` | `crates/dcp-traits` | Pluggable interfaces: `Tokenizer`, `StatePersistence`, `PruneStrategy`, `CacheAccountant`, `MemoryRetriever` |
-| `dcp-tokens` | `crates/dcp-tokens` | Token counting (char/4 default; optional HuggingFace, tiktoken, Claude backends) |
-| `dcp-protected` | `crates/dcp-protected` | Glob-based tool and file-path protection helpers |
-| `dcp-state` | `crates/dcp-state` | SessionState transitions and idempotent rebuild |
-| `dcp-storage` | `crates/dcp-storage` | Persistence backends: file, in-memory; optional sled/sqlite |
-| `dcp-prune` | `crates/dcp-prune` | Deterministic strategies: deduplicate, purge_errors, stale_file_reads (optional: lingua, embedding) |
-| `dcp-compress` | `crates/dcp-compress` | LLM-driven compression: range/message modes, block bookkeeping, frontier tracking |
-| `dcp-prompts` | `crates/dcp-prompts` | Default system prompts with 3-tier override cascade (extension → nudge → tool) |
-| `dcp-nudges` | `crates/dcp-nudges` | Context-limit, turn, and iteration nudge injection |
-| `dcp-config` | `crates/dcp-config` | Configuration schema, JSONC parser, 4-tier cascade resolution |
-| `dcp-telemetry` | `crates/dcp-telemetry` | Telemetry, metrics, and observer hooks (optional: logging, quality regression) |
-| `dcp-permissions` | `crates/dcp-permissions` | Auth, host permissions, compress permission resolution |
-| `dcp-messages` | `crates/dcp-messages` | Message query, shape, sync, priority, injection, subagents, reasoning strip |
-| `dcp-notification` | `crates/dcp-notification` | User-facing notification formatting and delivery |
-| `dcp-core` | `crates/dcp-core` | `ContextPruner` facade and orchestration (primary entry point) |
-| `dcp-cli` | `crates/dcp-cli` | CLI binary with stats, timeline, find-session, get-message, token-stats, message-tokens, sweep, compress, decompress commands (requires `--features scripts` for analytics commands) |
-| `dcp-rig` | `crates/dcp-rig` | Rig framework adapter (test fixtures) |
-| `dynamic_context_pruning` | `crates/dynamic_context_pruning` | Umbrella crate re-exporting all public types |
+```bash
+dcp token-stats --json
+dcp message-tokens --session SESSION_ID --json --no-color
+dcp find-session --pattern "session-*" --after 2024-01-01
+```
+
+> Analytics commands need the CLI built with `--features scripts` in some builds.
+
+---
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `context` | Token usage breakdown + pruning stats |
+| `stats -s <id>` | Session statistics (saved tokens, ratio) |
+| `timeline -s <id>` | Compression events over time |
+| `find-session` | Find sessions by pattern / date range |
+| `get-message` | Full message payload(s) by ID |
+| `token-stats` | Aggregate token stats (`--json`) |
+| `message-tokens` | Per-message breakdown (`--json`) |
+| `sweep [n]` | Flush pending prune tools (default: all) |
+| `compress [file]` | One-shot compress (stdin / file) |
+| `decompress <id>` | Restore compressed block |
+| `recompress <id>` | Re-activate a user-decompressed block |
+| `manual [on\|off]` | Toggle / show manual mode |
+
+```bash
+dcp stats --session-id abc123
+dcp timeline -s abc123
+dcp find-session --pattern "session-*" --after 2026-01-01
+dcp compress -                 # stdin
+dcp decompress b1
+```
+
+---
 
 ## Configuration
 
-Config cascades through 4 levels (later wins per key, arrays replace wholesale):
+Later tiers win per key (arrays replace wholesale):
 
-1. **Built-in defaults** — compiled into the binary
-2. **Global** — `$XDG_CONFIG_HOME/dynamic_context_pruning/config.jsonc` (`~/.config/...` fallback)
-3. **Custom** — `$DCP_CONFIG_DIR/config.jsonc` (if env var is set)
-4. **Project** — `.dynamic_context_pruning/config.jsonc` in working directory or ancestor
-
-### Key Config Options
+1. Built-in defaults  
+2. `$XDG_CONFIG_HOME/dynamic_context_pruning/config.jsonc`  
+3. `$DCP_CONFIG_DIR/config.jsonc`  
+4. `.dynamic_context_pruning/config.jsonc` (project / ancestor)
 
 ```jsonc
 {
-  "enabled": true,                    // Master switch
-  "debug": false,                     // Verbose telemetry output
-  "cacheStabilityMode": "agent-message", // "aggressive" | "agent-message" | "manual"
-  "protectedFilePatterns": ["**/.env"],  // Glob patterns for protected files
+  "enabled": true,
+  // "aggressive" | "agent-message" | "manual"
+  "cacheStabilityMode": "agent-message",
+  "protectedFilePatterns": ["**/.env"],
   "compress": {
-    "mode": "range",                 // "range" | "message"
+    "mode": "range",
     "maxBlocks": 50,
     "minTokens": 2000
   },
@@ -133,112 +267,170 @@ Config cascades through 4 levels (later wins per key, arrays replace wholesale):
     "purgeErrors": { "enabled": true },
     "staleFileReads": { "enabled": true, "maxAge": 3600 }
   },
-  "manualMode": {
-    "enabled": false,
-    "requireExplicitConsent": false
-  },
-  "notification": {
-    "level": "essential"             // "silent" | "essential" | "verbose"
-  }
+  "notification": { "level": "essential" }
 }
 ```
 
 ```rust
-// Programmatic usage
 use dcp_config::Config;
-
 let cfg = Config::load_default()?;
 cfg.validate()?;
 ```
 
-## CLI Usage
+Schema reference: [`dcp.schema.json`](dcp.schema.json).
 
-```bash
-# Show token usage breakdown and pruning stats
-dcp context
+---
 
-# Show session statistics
-dcp stats --session-id <SESSION_ID>
-dcp stats -s <SESSION_ID>
+## Architecture
 
-# Show compression events over time
-dcp timeline --session-id <SESSION_ID>
-dcp timeline -s <SESSION_ID>
+Modular Rust workspace (~19 crates):
 
-# Find sessions by pattern or date range
-dcp find-session --pattern "session-*"
-dcp find-session --after 2024-01-01 --before 2024-12-31
-dcp find-session -p "test-*" -a 2024-01-01
-
-# Get full message payload(s) by ID (requires --features scripts)
-dcp get-message <message-id> [--session SESSION_ID] [--scan-sessions N]
-
-# Token usage statistics across sessions (requires --features scripts)
-dcp token-stats [--sessions N] [--session SESSION_ID] [--json]
-
-# Per-message token breakdown for a session (requires --features scripts)
-dcp message-tokens --session SESSION_ID [--json] [--no-color]
-
-# Flush pending prune tools
-dcp sweep
-dcp sweep 5  # flush 5 pending
-
-# Run compress tool (reads messages from stdin or file)
-dcp compress
-dcp compress messages.json
-
-# Restore a compressed block
-dcp decompress b1
-
-# Re-activate a user-decompressed block
-dcp recompress b1
-
-# Toggle manual mode
-dcp manual on
-dcp manual off
+```text
+dcp-types / dcp-traits
+    ├── dcp-tokens          token backends
+    ├── dcp-protected       glob protection
+    ├── dcp-state           session transitions
+    │     ├── dcp-storage
+    │     ├── dcp-prune       dedup · purge_errors · stale_file_reads
+    │     ├── dcp-compress    LLM range/message modes
+    │     └── dcp-nudges
+    ├── dcp-config          4-tier cascade
+    ├── dcp-core            ContextPruner facade
+    ├── dcp-cli
+    └── opencode-dcp-bridge
 ```
+
+| Crate | Role |
+|-------|------|
+| `dcp-core` | Primary library entry (`ContextPruner`) |
+| `dcp-cli` | Binary: stats, sweep, compress, … |
+| `dcp-prune` | Deterministic strategies |
+| `dcp-compress` | LLM compression + block bookkeeping |
+| `dcp-config` | JSONC cascade: builtin → global → custom → project |
+| `opencode-dcp-bridge` | OpenCode plugin bridge |
+
+---
 
 ## Testing
 
 ```bash
-# Run all workspace tests
 cargo test --workspace
-
-# Run tests for a specific crate
 cargo test -p dcp-core
-cargo test -p dcp-config
-
-# Run with coverage
-cargo test --workspace -- --nocapture
-
-# Run specific test
 cargo test -p dcp-cli -- stats_args_parsing
 ```
 
-### Test Categories
+| Kind | Where |
+|------|-------|
+| Unit | Inline `#[cfg(test)]` |
+| Property | `dcp-state` + proptest |
+| Snapshot | insta |
+| Examples | `examples/01_minimal.rs` … `06_cache_stability.rs` |
 
-- **Unit tests** — each crate has inline `#[cfg(test)]` modules
-- **Property tests** — `dcp-state` uses `proptest` for state machine property testing
-- **Snapshot tests** — `insta` for serialized output regression testing
-- **Integration tests** — `tests/smoke.rs` at workspace root
-- **Examples** — `examples/01_minimal.rs` through `examples/06_cache_stability.rs`
+---
 
-## Contributing
+## Troubleshooting
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contribution guide — including build steps, pre-commit hooks, coding standards, and the PR process.
+### `dcp: command not found`
 
-<a href="https://github.com/quangdang46/dynamic_context_pruning/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=quangdang46/dynamic_context_pruning" />
-</a>
+```bash
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh?$(date +%s)" \
+  | bash -s -- --easy-mode --verify
+hash -r
+dcp --help
+```
+
+### Stats / timeline empty for a session
+
+Confirm the session ID and that the storage backend actually recorded the session:
+
+```bash
+dcp find-session --pattern "*"
+dcp stats --session-id <exact-id>
+```
+
+### Decompress cannot restore a block
+
+Blocks are tracked; restore depends on the persistence backend still holding the payload. If the block was GC’d or storage was wiped, recompress from source messages instead.
+
+### OpenCode panel missing
+
+```bash
+opencode plugin @qdang46/opencode-dcp-plugin@latest --global
+# fully restart OpenCode, then:
+/dcp
+```
+
+### Analytics flags missing
+
+Some analytics paths require building the CLI with `--features scripts`:
+
+```bash
+cargo build -p dcp-cli --release --features scripts
+```
+
+---
+
+## Limitations
+
+### What dcp Doesn't Do (Yet)
+
+- **Not a full agent runtime** — prunes context; does not replace the agent loop
+- **LLM compress quality** depends on the model you wire in
+- **Wrong cache mode** can still thrash provider caches if misconfigured
+
+### Known Limitations
+
+| Capability | Current state | Notes |
+|------------|---------------|-------|
+| Deterministic-only mode | ✅ | Disable compress / leave LLM unconfigured |
+| Scripts analytics | ⚠️ Feature-gated | `--features scripts` |
+| Pixel-perfect memory of every byte | ⚠️ Block-based | Decompress needs persisted payload |
+| Multi-agent shared store | ⚠️ | Design for single-session storage first |
+
+---
+
+## FAQ
+
+### Deterministic only?
+
+Yes — disable compress strategies / leave LLM backends unconfigured; dedup + purge + stale-read still run.
+
+### Is OpenCode required?
+
+No. CLI and library work standalone.
+
+### Does decompress always restore originals?
+
+Blocks are tracked; restore depends on the persistence backend still holding the payload.
+
+### How do I protect secrets?
+
+Set `protectedFilePatterns` in config (e.g. `**/.env`, `**/credentials.json`).
+
+### Can I embed this in my own agent?
+
+Yes — use `dcp-core`’s `ContextPruner` and the examples under `examples/`.
+
+### What is `cacheStabilityMode`?
+
+Controls how aggressively compressed ranges are allowed to invalidate provider prompt caches. Prefer `agent-message` unless you know you need `aggressive` or full `manual` control.
+
+---
+
+## About Contributions
+
+Please don't take this the wrong way, but I do not accept outside contributions for any of my projects. I simply don't have the mental bandwidth to review anything, and it's my name on the thing, so I'm responsible for any problems it causes; thus, the risk-reward is highly asymmetric from my perspective. I'd also have to worry about other "stakeholders," which seems unwise for tools I mostly make for myself for free. Feel free to submit issues, and even PRs if you want to illustrate a proposed fix, but know I won't merge them directly. Instead, I'll have Claude or Codex review submissions via `gh` and independently decide whether and how to address them. Bug reports in particular are welcome. Sorry if this offends, but I want to avoid wasted time and hurt feelings. I understand this isn't in sync with the prevailing open-source ethos that seeks community contributions, but it's the only way I can move at this velocity and keep my sanity.
+
+---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+[MIT](LICENSE)
 
 ---
 
 <div align="center">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=quangdang46/dynamic_context_pruning&type=Date)](https://star-history.com/#quangdang46/dynamic_context_pruning&Date)
+**Less noise. More context for the work that matters.**
 
 </div>
