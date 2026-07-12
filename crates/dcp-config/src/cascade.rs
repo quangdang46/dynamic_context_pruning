@@ -171,9 +171,7 @@ fn discover_opencode_overlays(base: Option<&Path>) -> Vec<PathBuf> {
                 out.push(p);
                 break;
             }
-            let marker_present = PROJECT_MARKERS
-                .iter()
-                .any(|m| dir.join(m).exists());
+            let marker_present = PROJECT_MARKERS.iter().any(|m| dir.join(m).exists());
             if marker_present {
                 break;
             }

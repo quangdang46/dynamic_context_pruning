@@ -391,10 +391,7 @@ impl DcpPruner {
         let Ok(val) = serde_json::from_str::<serde_json::Value>(&event_json) else {
             return Ok(());
         };
-        let event_type = val
-            .get("type")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let event_type = val.get("type").and_then(|v| v.as_str()).unwrap_or("");
 
         // Common OpenCode event shapes:
         // { type: "session.updated", properties: { sessionID } }

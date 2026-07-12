@@ -114,10 +114,7 @@ pub fn opencode_values_to_dcp(opencode_messages: &[JsonValue]) -> Result<Vec<Mes
 enum PartConversion {
     Skip,
     Single(Part),
-    Tool {
-        call: Part,
-        result: Option<Part>,
-    },
+    Tool { call: Part, result: Option<Part> },
 }
 
 fn part_to_dcp(part: &JsonValue, parent_role: Role) -> PartConversion {
@@ -317,10 +314,8 @@ pub fn merge_dcp_into_opencode_values(
         }
     }
 
-    let pruned_call_ids: HashSet<String> = original_call_ids
-        .difference(&live_calls)
-        .cloned()
-        .collect();
+    let pruned_call_ids: HashSet<String> =
+        original_call_ids.difference(&live_calls).cloned().collect();
 
     let mut out: Vec<JsonValue> = Vec::with_capacity(transformed.len());
 
@@ -514,7 +509,10 @@ fn merge_one_message(
                 }
 
                 if let Some(Part::ToolResult {
-                    output, error, status, ..
+                    output,
+                    error,
+                    status,
+                    ..
                 }) = tool_results.get(&call_id).copied()
                 {
                     if let Some(state) = part.get_mut("state") {
@@ -525,10 +523,8 @@ fn merge_one_message(
                                     state["output"] = JsonValue::String(PRUNED_TOOL_OUTPUT.into());
                                 } else if let Some(o) = output {
                                     // Only apply if shortened / placeholder.
-                                    let prev = state
-                                        .get("output")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("");
+                                    let prev =
+                                        state.get("output").and_then(|v| v.as_str()).unwrap_or("");
                                     if o != prev
                                         && (o == PRUNED_TOOL_OUTPUT || o.len() < prev.len())
                                     {
@@ -782,10 +778,7 @@ mod tests {
     #[test]
     fn test_extract_session_id() {
         let opencode = r#"[{"info":{"id":"m1","role":"user","sessionID":"ses_xyz","time":{"created":1}},"parts":[{"type":"text","text":"x"}]}]"#;
-        assert_eq!(
-            extract_session_id(opencode).as_deref(),
-            Some("ses_xyz")
-        );
+        assert_eq!(extract_session_id(opencode).as_deref(), Some("ses_xyz"));
     }
 
     #[test]
