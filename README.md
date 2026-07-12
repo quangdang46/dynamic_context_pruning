@@ -1,15 +1,15 @@
 # dcp — Dynamic Context Pruning
 
 <div align="center">
-  <img src="dcp_illustration.webp" alt="dcp — deterministic + LLM context pruning for coding agents" width="720">
+  <img src="dcp_illustration.webp" alt="dcp — deterministic + LLM context pruning for coding agents">
 </div>
 
 <div align="center">
 
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/github/v/release/quangdang46/dynamic_context_pruning?include_prereleases)](https://github.com/quangdang46/dynamic_context_pruning/releases)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Release](https://img.shields.io/github/v/release/quangdang46/dynamic_context_pruning?include_prereleases)
 
 </div>
 
@@ -17,7 +17,6 @@
 Shrink session token load with dedup, error purge, stale-read removal, and optional LLM compression — via CLI, library embed, or OpenCode plugin.
 
 <div align="center">
-<h3>Quick Install</h3>
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_pruning/main/install.sh?$(date +%s)" \
@@ -25,6 +24,29 @@ curl -fsSL "https://raw.githubusercontent.com/quangdang46/dynamic_context_prunin
 ```
 
 </div>
+
+---
+
+## 🤖 Agent Quickstart (Robot Mode)
+
+```bash
+# Token usage breakdown
+dcp token-stats --json
+dcp message-tokens --session SESSION_ID --json --no-color
+
+# Compression timeline
+dcp timeline -s $SESSION_ID --format json
+
+# Flush pending deterministic prunes
+dcp sweep
+
+# Compress messages (stdin or file)
+dcp compress messages.json
+dcp decompress b1
+dcp recompress b1
+```
+
+Also available as **OpenCode plugin** — `/dcp` opens the prune panel.
 
 ---
 
