@@ -185,8 +185,8 @@ Restart OpenCode → `/dcp` opens the panel.
 git clone https://github.com/quangdang46/dynamic_context_pruning.git
 cd dynamic_context_pruning
 cargo build --workspace --release
-cargo run -p dcp-cli -- --help
 ```
+
 
 Requires **Rust 1.85+** (edition 2024).
 
@@ -299,7 +299,7 @@ let cfg = Config::load_default()?;
 cfg.validate()?;
 ```
 
-Schema reference: [`dcp.schema.json`](dcp.schema.json).
+Schema reference: [`dcp.schema.json`](opencode-dcp-plugin/dcp.schema.json).
 
 ---
 
@@ -318,14 +318,12 @@ dcp-types / dcp-traits
     │     └── dcp-nudges
     ├── dcp-config          4-tier cascade
     ├── dcp-core            ContextPruner facade
-    ├── dcp-cli
     └── opencode-dcp-bridge
 ```
 
 | Crate | Role |
 |-------|------|
 | `dcp-core` | Primary library entry (`ContextPruner`) |
-| `dcp-cli` | Binary: stats, sweep, compress, … |
 | `dcp-prune` | Deterministic strategies |
 | `dcp-compress` | LLM compression + block bookkeeping |
 | `dcp-config` | JSONC cascade: builtin → global → custom → project |
@@ -338,7 +336,6 @@ dcp-types / dcp-traits
 ```bash
 cargo test --workspace
 cargo test -p dcp-core
-cargo test -p dcp-cli -- stats_args_parsing
 ```
 
 | Kind | Where |
@@ -380,14 +377,6 @@ Blocks are tracked; restore depends on the persistence backend still holding the
 opencode plugin @qdang46/opencode-dcp-plugin@latest --global
 # fully restart OpenCode, then:
 /dcp
-```
-
-### Analytics flags missing
-
-Some analytics paths require building the CLI with `--features scripts`:
-
-```bash
-cargo build -p dcp-cli --release --features scripts
 ```
 
 ---

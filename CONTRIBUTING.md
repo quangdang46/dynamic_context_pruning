@@ -137,7 +137,6 @@ This is a Cargo workspace with 21 crates. Key crates:
 | `dcp-permissions` | HTTP auth, host permissions, compress permission resolution |
 | `dcp-prompts` | Prompt store with 3-tier override cascade, extensions |
 | `dcp-notification` | Notification formatting and delivery |
-| `dcp-cli` | CLI subcommands (stats, timeline, find-session, etc.) |
 | `dcp-core` | Core transform pipeline |
 
 See `README.md` for the full architecture diagram.
@@ -162,13 +161,7 @@ See `README.md` for the full architecture diagram.
 
 ## Configuration Schema
 
-The JSON schema for `opencode.json` is generated from Rust types via `schemars`. After changing any config type, regenerate:
-
-```bash
-cargo test -p dcp-config schema_file_generated_at_repo_root
-```
-
-This writes `dcp.schema.json` to the repo root. Commit the updated file.
+The JSON schema for `opencode.json` lives at `opencode-dcp-plugin/dcp.schema.json`, generated from Rust types via `schemars`. After changing any config type, update the schema file manually to match.
 
 ## Beads (Issue Tracking)
 
