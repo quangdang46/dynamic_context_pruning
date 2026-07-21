@@ -119,14 +119,6 @@ name = "01_minimal"
 path = "examples/01_minimal.rs"
 
 [[example]]
-name = "02_jcode_integration"
-path = "examples/02_jcode_integration.rs"
-
-[[example]]
-name = "03_codex_integration"
-path = "examples/03_codex_integration.rs"
-
-[[example]]
 name = "04_custom_agent"
 path = "examples/04_custom_agent.rs"
 
