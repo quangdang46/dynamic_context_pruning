@@ -134,4 +134,74 @@ const server: Plugin = (async (ctx) => {
     }
 }) satisfies Plugin
 
-export default server
+/**
+ * Dual-target export:
+ * - OpenCode 1.x: `{ id, server }` V1 PluginModule shape.
+ * - OpenCode 2.x (opencode2): requires `{ id, setup }` or `{ id, effect }`.
+ *
+ * The 2.x `setup` registers the same DCP behavior through the V2 hook API:
+ * - ctx.session.hook("context") replaces experimental.chat.{system,messages}.transform
+ *   (system + messages are mutated in place before model dispatch).
+ * - ctx.tool.transform(tools.add(...)) registers the compress tool
+ *   (JSON Schema input, plain-string content result).
+ */
+const pluginModule = {
+    id: "dcp-rust",
+    server,
+    setup: async (ctx) => {
+        // Session context hook: runs right before model dispatch with mutable
+        // system parts and messages. Reuses the V1 handlers against a shimmed
+        // input/output pair so both hosts share one code path.
+        await ctx.session.hook("context", (event) => {
+            const { sessionID, agent, model, system, messages, tools } = event
+            void agent
+            void model
+
+            // System prompt injection (V1 system.transform equivalent).
+            const systemOutput = { system: system.map((part) => part.text) }
+            const systemHandler = getSystemHandler(sessionID)
+            if (systemHandler) {
+                void systemHandler({ sessionID }, systemOutput)
+                for (let i = 0; i < systemOutput.system.length; i++) {
+                    if (system[i]) {
+                        system[i].text = systemOutput.system[i]
+                    } else {
+                        system.push(SystemPart.make(systemOutput.system[i]))
+                    }
+                }
+            }
+
+            // Message pipeline (V1 messages.transform equivalent).
+            const messageHandler = getMessageHandler(sessionID)
+            if (messageHandler) {
+                void messageHandler({}, { messages })
+            }
+            void tools
+        })
+
+        // Compress tool registration.
+        await ctx.tool.transform((tools) => {
+            tools.add({
+                name: "compress",
+                description: COMPRESS_TOOL_DESCRIPTION,
+                input: {
+                    type: "object",
+                    properties: {
+                        topic: { type: "string", description: "Short label (3-5 words) for the batch" },
+                        startId: { type: "string", description: "Message/block ID beginning of range (e.g. m0001, b2)" },
+                        endId: { type: "string", description: "Message/block ID end of range (e.g. m0012, b5)" },
+                        summary: { type: "string", description: "Technical summary replacing all content in range" },
+                    },
+                    required: ["topic", "startId", "endId", "summary"],
+                    additionalProperties: false,
+                },
+                execute: async (input) => {
+                    return compressViaBridge(input)
+                },
+            })
+        })
+    },
+}
+
+export default pluginModule
+export { server }
