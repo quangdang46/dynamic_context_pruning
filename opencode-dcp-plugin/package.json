@@ -1,12 +1,15 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": false,
   "type": "module",
   "description": "OpenCode plugin that optimizes token usage by pruning obsolete tool outputs from conversation context (full parity port of @tarquinen/opencode-dcp, rebranded as ◆ DCP rust)",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "oc-plugin": ["server", "tui"],
+  "oc-plugin": [
+    "server",
+    "tui"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -49,10 +52,7 @@
     "directory": "opencode-dcp-plugin"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.4.3",
-    "@opentui/core": "^0.4.2",
-    "@opentui/solid": "^0.4.2",
-    "solid-js": "^1.9.12"
+    "@opencode-ai/plugin": ">=1.4.3"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
@@ -61,10 +61,9 @@
   },
   "devDependencies": {
     "@opencode-ai/plugin": "^1.17.18",
-    "@opentui/core": "^0.4.3",
-    "@opentui/solid": "^0.4.3",
+    "@opentui/core": "^0.5.6",
+    "@opentui/solid": "^0.5.6",
     "@types/node": "^26.1.1",
-    "solid-js": "^1.9.14",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
@@ -78,5 +77,9 @@
   ],
   "engines": {
     "node": ">=18"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true,
+    "msgpackr-extract@3.0.4": true
   }
 }
