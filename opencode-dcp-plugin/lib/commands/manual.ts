@@ -28,7 +28,7 @@ const COMPRESS_TRIGGER_PROMPT = [
     "Return after compress with a brief explanation of what content was compressed.",
 ].join("\n\n")
 
-function getTriggerPrompt(
+export function getTriggerPrompt(
     tool: "compress",
     state: SessionState,
     config: PluginConfig,

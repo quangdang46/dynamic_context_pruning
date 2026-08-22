@@ -7,13 +7,14 @@ import {
 } from "./lib/v2/adapter"
 import { ensureSessionInitialized } from "./lib/state"
 import { createCompressMessageTool, createCompressRangeTool } from "./lib/compress"
+import { getTriggerPrompt } from "./lib/commands/manual"
 import {
     compressDisabledByOpencode,
     hasExplicitToolPermission,
     type HostPermissionSnapshot,
 } from "./lib/host-permissions"
 import { Logger } from "./lib/logger"
-import { createSessionState } from "./lib/state"
+import { createSessionState, type WithParts } from "./lib/state"
 import { PromptStore } from "./lib/prompts/store"
 import {
     createChatMessageTransformHandler,
@@ -155,15 +156,57 @@ const pluginModule = {
     server,
     setup: async (ctx: any) => {
         const config = getConfig(ctx)
-        if (!config.enabled) return
 
+        // eslint-disable-next-line no-console -- stderr probe: v2 setup visibility
+        console.error("[DCP] v2 setup() entered")
         const logger = new Logger(config.debug)
+
+        logger.info("DCP v2 setup registered")
         const state = createSessionState()
         const prompts = new PromptStore(
             logger,
             ctx.directory ?? ".",
             config.experimental.customPrompts,
         )
+
+        // V1 client shim over the V2 plugin context. The compress pipeline
+        // and notification paths call client.session.{messages,prompt,get}
+        // with the V1 request shape; translate to the V2 message.list /
+        // session.synthetic APIs here.
+        // Last live message list seen by the context hook. The compress
+        // pipeline fetches session messages through the shim; in v2 the most
+        // reliable source is the hook's own payload, so cache it here.
+        let lastContext: { messages: WithParts[]; sources: any[] } | null = null
+
+        const v2Client: any = {
+            session: {
+                async messages(input: any) {
+                    if (lastContext && lastContext.messages.length > 0) {
+                        return { data: lastContext.messages }
+                    }
+                    const id = input?.path?.id ?? input?.sessionID
+                    const res =
+                        (await ctx.client?.message?.list?.({ sessionID: id })) ?? {}
+                    const raw = res?.data ?? []
+                    const adapted = fromV2Messages(raw)
+                    lastContext = adapted
+                    return { data: adapted.messages }
+                },
+                async get(input: any) {
+                    return { data: {} }
+                },
+                async prompt(input: any) {
+                    await ctx.session.prompt({
+                        sessionID: input.path.id,
+                        text: input.body?.parts?.[0]?.text ?? "",
+                    })
+                    return {}
+                },
+            },
+            tui: {
+                async showToast() {},
+            },
+        }
 
         prompts.reload()
         const runtimePrompts = prompts.getRuntimePrompts()
@@ -175,6 +218,10 @@ const pluginModule = {
         await ctx.session.hook("context", (event: any) => {
             const { sessionID, system: systemParts, messages: v2Messages } = event
             if (!sessionID || !Array.isArray(v2Messages)) return
+            logger.info("v2 context hook fired", {
+                sessionID,
+                messageCount: v2Messages.length,
+            })
 
             void ensureSessionInitialized(
                 ctx.client ?? ctx.session,
@@ -185,8 +232,34 @@ const pluginModule = {
                 config.manualMode.enabled,
             )
 
-            const { messages, sources } = fromV2Messages(v2Messages)
+            const { messages, sources } = fromV2Messages(v2Messages, sessionID)
+
             if (messages.length === 0) return
+
+            // v2 has no command.execute hook: detect the submitted
+            // /dcp-compress turn here and queue the real trigger prompt. The
+            // message pipeline below (applyPendingManualTrigger) then swaps
+            // the text before model dispatch.
+            const lastV1 = messages[messages.length - 1]
+            const lastText = lastV1?.parts
+                ?.filter((p: any) => p.type === "text")
+                .map((p: any) => p.text)
+                .join(" ")
+                ?? ""
+            // v2 wraps the submitted command text in literal quotes.
+            const trimmed = lastText.trim().replace(/^["']+|["']+$/g, "").trim()
+            if (lastV1?.info.role === "user" && /^\/dcp-compress\b/.test(trimmed)) {
+                const focus = trimmed.replace(/^\/dcp-compress\b/, "").trim()
+                state.manualMode = "compress-pending"
+                state.pendingManualTrigger = {
+                    sessionId: sessionID,
+                    prompt: getTriggerPrompt("compress", state, config, focus),
+                }
+                logger.info("Intercepted /dcp-compress in v2 context hook", {
+                    sessionId: sessionID,
+                    focus,
+                })
+            }
 
             const systemHandler = createSystemPromptHandler(state, logger, config, prompts)
             const systemOutput = { system: systemParts.map((p: any) => p.text) }
@@ -222,7 +295,7 @@ const pluginModule = {
         if (config.compress.permission !== "deny") {
             await ctx.tool.transform((tools: any) => {
                 const toolCtxBase = {
-                    client: undefined,
+                    client: v2Client,
                     state,
                     logger,
                     config,
@@ -234,6 +307,9 @@ const pluginModule = {
                         : createCompressRangeTool(toolCtxBase)
 
                 tools.add({
+                    // Direct provider-visible tool: CodeMode wrapping breaks
+                    // models that do not emit JS execute calls reliably.
+                    options: { codemode: false },
                     name: "compress",
                     description: compressDescription,
                     input: {
@@ -293,9 +369,11 @@ const pluginModule = {
         if (config.commands.enabled && config.compress.permission !== "deny") {
             await ctx.command.transform((commands: any) => {
                 commands.update("dcp-compress", (command: any) => {
-                    command.template = ""
-                    command.description =
-                        "Trigger DCP manual compression with: /dcp-compress [focus]"
+                    // Non-empty template: v2 turns the submitted slash into
+                    // a user turn built from this text (arguments appended).
+                    // The messages.transform hook swaps in the real manual
+                    // compress prompt before model dispatch.
+                    command.template = "/dcp-compress"
                 })
             })
         }

@@ -1,6 +1,6 @@
 {
   "name": "@qdang46/opencode-dcp-plugin",
-  "version": "1.0.6",
+  "version": "1.1.6",
   "private": false,
   "type": "module",
   "description": "OpenCode plugin that optimizes token usage by pruning obsolete tool outputs from conversation context (full parity port of @tarquinen/opencode-dcp, rebranded as ◆ DCP rust)",

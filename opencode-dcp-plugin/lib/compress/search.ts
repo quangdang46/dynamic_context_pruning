@@ -77,13 +77,13 @@ export function resolveBoundaryIds(
 
     if (!startReference) {
         issues.push(
-            `startId ${parsedStartId.ref} is not available in the current conversation context. Choose an injected ID visible in context.`,
+            `startId ${parsedStartId.ref} is not available in the current conversation context (refs=${state.messageIds.byRef.size}, rawMsgs=${context.rawMessagesById.size}). Choose an injected ID visible in context.`,
         )
     }
 
     if (!endReference) {
         issues.push(
-            `endId ${parsedEndId.ref} is not available in the current conversation context. Choose an injected ID visible in context.`,
+            `endId ${parsedEndId.ref} is not available in the current conversation context (refs=${state.messageIds.byRef.size}, rawMsgs=${context.rawMessagesById.size}). Choose an injected ID visible in context.`,
         )
     }
 

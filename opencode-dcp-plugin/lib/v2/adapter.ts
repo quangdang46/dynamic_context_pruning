@@ -68,9 +68,9 @@ export function fromV2Messages(v2Messages: V2LiveMessage[]): {
 
             for (const part of msg.content ?? []) {
                 if (part.type === "text") {
-                    parts.push({ type: "text", text: part.text })
+                    parts.push({ type: "text", text: part.text, sourcePart: part })
                 } else if (part.type === "reasoning") {
-                    parts.push({ type: "reasoning", text: part.text })
+                    parts.push({ type: "reasoning", text: part.text, sourcePart: part })
                 } else if (part.type === "tool-call") {
                     const result = resultsById.get(part.id)
                     const status = result ? "completed" : "running"
@@ -187,17 +187,18 @@ export function applyV1MutationsToV2(adapted: WithParts[], sources: V2LiveMessag
                 ) {
                     result.result = { type: "text", value: part.state.output }
                 }
-            } else if (part.type === "text" && part.__dcpInjected === true) {
-                // Injected parts (nudges, ids, manual-compress prompts): append
-                // as new text content right after the last existing part.
-                v2.content.push({
-                    type: "text",
-                    text: part.text,
-                    ...(part.metadata ? { metadata: part.metadata } : {}),
-                })
-            } else if (part.type === "text" && part.sourcePart) {
-                // In-place edits of existing user text.
-                if (part.sourcePart.text !== part.text) {
+            } else if (part.type === "text") {
+                if (part.__dcpInjected === true || !part.sourcePart) {
+                    // Injected parts (nudges, ids, manual-compress prompts)
+                    // have no v2 counterpart — append as new content.
+                    v2.content.push({
+                        type: "text",
+                        text: part.text,
+                        ...(part.metadata ? { metadata: part.metadata } : {}),
+                    })
+                } else if (part.sourcePart.text !== part.text) {
+                    // In-place edit of an existing text part propagates to the
+                    // live v2 content part.
                     part.sourcePart.text = part.text
                 }
                 if (part.ignored) {
