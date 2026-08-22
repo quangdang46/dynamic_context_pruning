@@ -289,6 +289,16 @@ const pluginModule = {
                 })
             })
         }
+
+        if (config.commands.enabled && config.compress.permission !== "deny") {
+            await ctx.command.transform((commands: any) => {
+                commands.update("dcp-compress", (command: any) => {
+                    command.template = ""
+                    command.description =
+                        "Trigger DCP manual compression with: /dcp-compress [focus]"
+                })
+            })
+        }
     },
 }
 
