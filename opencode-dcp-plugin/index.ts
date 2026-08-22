@@ -185,10 +185,17 @@ const pluginModule = {
                         return { data: lastContext.messages }
                     }
                     const id = input?.path?.id ?? input?.sessionID
-                    const res =
-                        (await ctx.client?.message?.list?.({ sessionID: id })) ?? {}
-                    const raw = res?.data ?? []
-                    const adapted = fromV2Messages(raw)
+                    let raw: any[] = []
+                    try {
+                        const viaClient = await ctx.client?.message?.list?.({ sessionID: id })
+                        raw = viaClient?.data ?? []
+                    } catch {
+                        try {
+                            const res = await ctx.session?.messages?.({ path: { id } })
+                            raw = res?.data ?? []
+                        } catch {}
+                    }
+                    const adapted = fromV2Messages(raw, id)
                     lastContext = adapted
                     return { data: adapted.messages }
                 },

@@ -78,9 +78,18 @@ export function getModelInfo(messages: WithParts[]): LastUserModelContext {
     }
 
     const userInfo = lastUserMessage.info as UserMessage
+    // v2-adapted user messages may lack the v1 `model` block (the live model
+    // ref arrives via the session context hook input instead).
+    const model = (userInfo as any).model
+    if (!model || typeof model !== "object") {
+        return {
+            providerId: undefined,
+            modelId: undefined,
+        }
+    }
     return {
-        providerId: userInfo.model.providerID,
-        modelId: userInfo.model.modelID,
+        providerId: model.providerID,
+        modelId: model.modelID,
     }
 }
 
