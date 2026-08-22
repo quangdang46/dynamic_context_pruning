@@ -45,7 +45,10 @@ function toolResultToText(result: any): string {
  * - system/tool-role messages become ignored user turns so anchors and turn
  *   counting skip them.
  */
-export function fromV2Messages(v2Messages: V2LiveMessage[]): {
+export function fromV2Messages(
+    v2Messages: V2LiveMessage[],
+    sessionID?: string,
+): {
     messages: WithParts[]
     sources: V2LiveMessage[]
 } {
@@ -104,7 +107,7 @@ export function fromV2Messages(v2Messages: V2LiveMessage[]): {
             messages.push({
                 info: {
                     id: msg.id,
-                    sessionID: "",
+                    sessionID: sessionID ?? "",
                     role: "assistant",
                     time: { created: msg.time?.created ?? Date.now() },
                 } as WithParts["info"],
@@ -116,7 +119,7 @@ export function fromV2Messages(v2Messages: V2LiveMessage[]): {
             messages.push({
                 info: {
                     id: msg.id,
-                    sessionID: "",
+                    sessionID: sessionID ?? "",
                     role: "user",
                     time: { created: msg.time?.created ?? Date.now() },
                 } as WithParts["info"],
@@ -135,7 +138,7 @@ export function fromV2Messages(v2Messages: V2LiveMessage[]): {
             messages.push({
                 info: {
                     id: msg.id,
-                    sessionID: "",
+                    sessionID: sessionID ?? "",
                     role: "user",
                     time: { created: msg.time?.created ?? Date.now() },
                 } as WithParts["info"],
