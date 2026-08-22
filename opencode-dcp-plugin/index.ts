@@ -157,8 +157,6 @@ const pluginModule = {
     setup: async (ctx: any) => {
         const config = getConfig(ctx)
 
-        // eslint-disable-next-line no-console -- stderr probe: v2 setup visibility
-        console.error("[DCP] v2 setup() entered")
         const logger = new Logger(config.debug)
 
         logger.info("DCP v2 setup registered")
