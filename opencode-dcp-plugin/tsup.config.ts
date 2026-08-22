@@ -13,6 +13,7 @@ export default defineConfig({
     external: [
         "@opencode-ai/plugin",
         "@opencode-ai/sdk",
+        "@opencode-ai/ai",
         "@anthropic-ai/tokenizer",
         "@opentui/core",
         "@opentui/solid",
