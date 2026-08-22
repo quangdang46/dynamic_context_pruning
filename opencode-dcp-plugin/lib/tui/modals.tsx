@@ -8,8 +8,16 @@ import { ContextDialog, PanelDialog, StatsDialog, StatusDialog } from "./dialogs
 import type { TuiApi } from "./types"
 
 export function showDialog(api: TuiApi, render: () => any) {
-    api.ui.dialog.setSize("xlarge")
-    api.ui.dialog.replace(render)
+    const dialog = (api as any).ui?.dialog
+    if (typeof dialog?.show === "function") {
+        // OpenCode 2.x: show(render) + set(options).
+        dialog.set({ size: "xlarge" })
+        dialog.show(render)
+        return
+    }
+    // OpenCode 1.x: setSize + replace.
+    dialog.setSize("xlarge")
+    dialog.replace(render)
 }
 
 export function showStatusDialog(api: TuiApi, title: string, eyebrow: string, message: string) {
